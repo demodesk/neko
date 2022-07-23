@@ -237,7 +237,7 @@ func (manager *SessionManagerCtx) PopCursors() map[types.Session][]types.Cursor 
 // broadcasts
 // ---
 
-func (manager *SessionManagerCtx) Broadcast(event string, payload interface{}, exclude ...string) {
+func (manager *SessionManagerCtx) Broadcast(event string, payload any, exclude ...string) {
 	for _, session := range manager.List() {
 		if !session.State().IsConnected {
 			continue
@@ -253,7 +253,7 @@ func (manager *SessionManagerCtx) Broadcast(event string, payload interface{}, e
 	}
 }
 
-func (manager *SessionManagerCtx) AdminBroadcast(event string, payload interface{}, exclude ...string) {
+func (manager *SessionManagerCtx) AdminBroadcast(event string, payload any, exclude ...string) {
 	for _, session := range manager.List() {
 		if !session.State().IsConnected || !session.Profile().IsAdmin {
 			continue
@@ -269,7 +269,7 @@ func (manager *SessionManagerCtx) AdminBroadcast(event string, payload interface
 	}
 }
 
-func (manager *SessionManagerCtx) InactiveCursorsBroadcast(event string, payload interface{}, exclude ...string) {
+func (manager *SessionManagerCtx) InactiveCursorsBroadcast(event string, payload any, exclude ...string) {
 	for _, session := range manager.List() {
 		if !session.State().IsConnected || !session.Profile().CanSeeInactiveCursors {
 			continue
@@ -290,43 +290,43 @@ func (manager *SessionManagerCtx) InactiveCursorsBroadcast(event string, payload
 // ---
 
 func (manager *SessionManagerCtx) OnCreated(listener func(session types.Session)) {
-	manager.emmiter.On("created", func(payload ...interface{}) {
+	manager.emmiter.On("created", func(payload ...any) {
 		listener(payload[0].(*SessionCtx))
 	})
 }
 
 func (manager *SessionManagerCtx) OnDeleted(listener func(session types.Session)) {
-	manager.emmiter.On("deleted", func(payload ...interface{}) {
+	manager.emmiter.On("deleted", func(payload ...any) {
 		listener(payload[0].(*SessionCtx))
 	})
 }
 
 func (manager *SessionManagerCtx) OnConnected(listener func(session types.Session)) {
-	manager.emmiter.On("connected", func(payload ...interface{}) {
+	manager.emmiter.On("connected", func(payload ...any) {
 		listener(payload[0].(*SessionCtx))
 	})
 }
 
 func (manager *SessionManagerCtx) OnDisconnected(listener func(session types.Session)) {
-	manager.emmiter.On("disconnected", func(payload ...interface{}) {
+	manager.emmiter.On("disconnected", func(payload ...any) {
 		listener(payload[0].(*SessionCtx))
 	})
 }
 
 func (manager *SessionManagerCtx) OnProfileChanged(listener func(session types.Session)) {
-	manager.emmiter.On("profile_changed", func(payload ...interface{}) {
+	manager.emmiter.On("profile_changed", func(payload ...any) {
 		listener(payload[0].(*SessionCtx))
 	})
 }
 
 func (manager *SessionManagerCtx) OnStateChanged(listener func(session types.Session)) {
-	manager.emmiter.On("state_changed", func(payload ...interface{}) {
+	manager.emmiter.On("state_changed", func(payload ...any) {
 		listener(payload[0].(*SessionCtx))
 	})
 }
 
 func (manager *SessionManagerCtx) OnHostChanged(listener func(session types.Session)) {
-	manager.emmiter.On("host_changed", func(payload ...interface{}) {
+	manager.emmiter.On("host_changed", func(payload ...any) {
 		if payload[0] == nil {
 			listener(nil)
 		} else {
@@ -336,7 +336,7 @@ func (manager *SessionManagerCtx) OnHostChanged(listener func(session types.Sess
 }
 
 func (manager *SessionManagerCtx) OnSettingsChanged(listener func(new types.Settings, old types.Settings)) {
-	manager.emmiter.On("settings_changed", func(payload ...interface{}) {
+	manager.emmiter.On("settings_changed", func(payload ...any) {
 		listener(payload[0].(types.Settings), payload[1].(types.Settings))
 	})
 }
