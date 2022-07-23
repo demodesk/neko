@@ -237,13 +237,13 @@ func (manager *SessionManagerCtx) PopCursors() map[types.Session][]types.Cursor 
 // broadcasts
 // ---
 
-func (manager *SessionManagerCtx) Broadcast(event string, payload interface{}, exclude interface{}) {
+func (manager *SessionManagerCtx) Broadcast(event string, payload interface{}, exclude ...string) {
 	for _, session := range manager.List() {
 		if !session.State().IsConnected {
 			continue
 		}
 
-		if exclude != nil {
+		if len(exclude) > 0 {
 			if in, _ := utils.ArrayIn(session.ID(), exclude); in {
 				continue
 			}
@@ -253,13 +253,13 @@ func (manager *SessionManagerCtx) Broadcast(event string, payload interface{}, e
 	}
 }
 
-func (manager *SessionManagerCtx) AdminBroadcast(event string, payload interface{}, exclude interface{}) {
+func (manager *SessionManagerCtx) AdminBroadcast(event string, payload interface{}, exclude ...string) {
 	for _, session := range manager.List() {
 		if !session.State().IsConnected || !session.Profile().IsAdmin {
 			continue
 		}
 
-		if exclude != nil {
+		if len(exclude) > 0 {
 			if in, _ := utils.ArrayIn(session.ID(), exclude); in {
 				continue
 			}
@@ -269,13 +269,13 @@ func (manager *SessionManagerCtx) AdminBroadcast(event string, payload interface
 	}
 }
 
-func (manager *SessionManagerCtx) InactiveCursorsBroadcast(event string, payload interface{}, exclude interface{}) {
+func (manager *SessionManagerCtx) InactiveCursorsBroadcast(event string, payload interface{}, exclude ...string) {
 	for _, session := range manager.List() {
 		if !session.State().IsConnected || !session.Profile().CanSeeInactiveCursors {
 			continue
 		}
 
-		if exclude != nil {
+		if len(exclude) > 0 {
 			if in, _ := utils.ArrayIn(session.ID(), exclude); in {
 				continue
 			}

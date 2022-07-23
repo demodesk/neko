@@ -66,9 +66,9 @@ type SessionManager interface {
 	SetCursor(cursor Cursor, session Session)
 	PopCursors() map[Session][]Cursor
 
-	Broadcast(event string, payload interface{}, exclude interface{})
-	AdminBroadcast(event string, payload interface{}, exclude interface{})
-	InactiveCursorsBroadcast(event string, payload interface{}, exclude interface{})
+	Broadcast(event string, payload interface{}, exclude ...string)
+	AdminBroadcast(event string, payload interface{}, exclude ...string)
+	InactiveCursorsBroadcast(event string, payload interface{}, exclude ...string)
 
 	OnCreated(listener func(session Session))
 	OnDeleted(listener func(session Session))
