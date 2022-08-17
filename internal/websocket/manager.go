@@ -263,10 +263,16 @@ func (manager *WebSocketManagerCtx) handle(connection *websocket.Conn, peer type
 		for {
 			_, raw, err := connection.ReadMessage()
 			if err != nil {
-				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					logger.Warn().Err(err).Msg("read message error")
+				if e, ok := err.(*websocket.CloseError); ok {
+					if e.Code == websocket.CloseNormalClosure {
+						logger.Info().Str("reason", e.Text).Msg("websocket close")
+					} else if e.Code == websocket.CloseGoingAway {
+						logger.Info().Str("reason", "going away").Msg("websocket close")
+					} else {
+						logger.Warn().Err(err).Msg("websocket close")
+					}
 				} else {
-					logger.Debug().Err(err).Msg("read message error")
+					logger.Err(err).Msg("read message error")
 				}
 
 				close(cancel)
