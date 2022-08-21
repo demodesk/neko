@@ -41,7 +41,7 @@ type Session interface {
 
 	// websocket
 	SetWebSocketPeer(websocketPeer WebSocketPeer)
-	SetWebSocketConnected(websocketPeer WebSocketPeer, connected bool)
+	SetWebSocketConnected(websocketPeer WebSocketPeer, connected bool, delayed bool)
 	GetWebSocketPeer() WebSocketPeer
 	Send(event string, payload any)
 
