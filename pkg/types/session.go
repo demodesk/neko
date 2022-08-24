@@ -60,7 +60,7 @@ type SessionManager interface {
 	List() []Session
 
 	SetHost(host Session)
-	GetHost() Session
+	GetHost() (Session, bool)
 	ClearHost()
 
 	SetCursor(cursor Cursor, session Session)

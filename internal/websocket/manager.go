@@ -132,8 +132,8 @@ func (manager *WebSocketManagerCtx) Start() {
 	})
 
 	manager.desktop.OnClipboardUpdated(func() {
-		session := manager.sessions.GetHost()
-		if session == nil || !session.Profile().CanAccessClipboard {
+		host, hasHost := manager.sessions.GetHost()
+		if !hasHost || !host.Profile().CanAccessClipboard {
 			return
 		}
 
@@ -145,7 +145,7 @@ func (manager *WebSocketManagerCtx) Start() {
 			return
 		}
 
-		session.Send(
+		host.Send(
 			event.CLIPBOARD_UPDATED,
 			message.ClipboardData{
 				Text: data.Text,

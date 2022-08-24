@@ -65,7 +65,7 @@ func (session *SessionCtx) State() types.SessionState {
 }
 
 func (session *SessionCtx) IsHost() bool {
-	return session.manager.GetHost() == session
+	return session.manager.isHost(session)
 }
 
 func (session *SessionCtx) PrivateModeEnabled() bool {
