@@ -198,8 +198,8 @@ func (manager *SessionManagerCtx) SetHost(host types.Session) {
 }
 
 func (manager *SessionManagerCtx) GetHost() (types.Session, bool) {
-	hostId := manager.hostId.Load().(string)
-	if hostId == "" {
+	hostId, ok := manager.hostId.Load().(string)
+	if !ok || hostId == "" {
 		return nil, false
 	}
 
@@ -211,7 +211,8 @@ func (manager *SessionManagerCtx) ClearHost() {
 }
 
 func (manager *SessionManagerCtx) isHost(host types.Session) bool {
-	return manager.hostId.Load().(string) == host.ID()
+	hostId, ok := manager.hostId.Load().(string)
+	return ok && hostId == host.ID()
 }
 
 // ---
