@@ -99,6 +99,7 @@ RUN set -eux; \
 
 #
 # copy runtime configs
+COPY --chown=neko:neko runtime/.Xresources /home/$USERNAME/.Xresources
 COPY runtime/dbus /usr/bin/dbus
 COPY runtime/default.pa /etc/pulse/default.pa
 COPY runtime/supervisord.conf /etc/neko/supervisord.conf
@@ -107,7 +108,6 @@ COPY runtime/xorg.conf /etc/neko/xorg.conf
 #
 # copy runtime folders
 COPY --chown=neko:neko runtime/icon-theme /home/$USERNAME/.icons/default
-COPY --chown=neko:neko runtime/.Xresources /home/$USERNAME/.Xresources
 COPY runtime/fontconfig/* /etc/fonts/conf.d/
 COPY runtime/fonts /usr/local/share/fonts
 
