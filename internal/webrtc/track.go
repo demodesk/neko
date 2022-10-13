@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/demodesk/neko/pkg/types"
+	"github.com/demodesk/neko/pkg/types/codec"
 )
 
 type Track struct {
@@ -26,9 +27,7 @@ type Track struct {
 	onRtcpMu sync.RWMutex
 }
 
-func NewTrack(stream types.StreamSinkManager, logger zerolog.Logger) (*Track, error) {
-	codec := stream.Codec()
-
+func NewTrack(logger zerolog.Logger, codec codec.RTPCodec, connection *webrtc.PeerConnection) (*Track, error) {
 	id := codec.Type.String()
 	track, err := webrtc.NewTrackLocalStaticSample(codec.Capability, id, "stream")
 	if err != nil {
@@ -53,8 +52,45 @@ func NewTrack(stream types.StreamSinkManager, logger zerolog.Logger) (*Track, er
 		}
 	}
 
-	err = t.SetStream(stream)
-	return t, err
+	sender, err := connection.AddTrack(t.track)
+	if err != nil {
+		return nil, err
+	}
+
+	go t.rtcpReader(sender)
+
+	return t, nil
+}
+
+func (t *Track) rtcpReader(sender *webrtc.RTPSender) {
+	rtcpBuf := make([]byte, 1500)
+	for {
+		n, _, err := sender.Read(rtcpBuf)
+		if err != nil {
+			if err == io.EOF || err == io.ErrClosedPipe {
+				return
+			}
+
+			t.logger.Err(err).Msg("RTCP read error")
+			continue
+		}
+
+		packets, err := rtcp.Unmarshal(rtcpBuf[:n])
+		if err != nil {
+			t.logger.Err(err).Msg("RTCP unmarshal error")
+			continue
+		}
+
+		t.onRtcpMu.RLock()
+		handler := t.onRtcp
+		t.onRtcpMu.RUnlock()
+
+		for _, packet := range packets {
+			if handler != nil {
+				go handler(packet)
+			}
+		}
+	}
 }
 
 func (t *Track) SetStream(stream types.StreamSinkManager) error {
@@ -83,46 +119,6 @@ func (t *Track) RemoveStream() {
 		_ = t.stream.RemoveListener(&t.listener)
 		t.stream = nil
 	}
-}
-
-func (t *Track) AddToConnection(connection *webrtc.PeerConnection) error {
-	sender, err := connection.AddTrack(t.track)
-	if err != nil {
-		return err
-	}
-
-	go func() {
-		rtcpBuf := make([]byte, 1500)
-		for {
-			n, _, err := sender.Read(rtcpBuf)
-			if err != nil {
-				if err == io.EOF || err == io.ErrClosedPipe {
-					return
-				}
-
-				t.logger.Err(err).Msg("RTCP read error")
-				continue
-			}
-
-			packets, err := rtcp.Unmarshal(rtcpBuf[:n])
-			if err != nil {
-				t.logger.Err(err).Msg("RTCP unmarshal error")
-				continue
-			}
-
-			t.onRtcpMu.RLock()
-			handler := t.onRtcp
-			t.onRtcpMu.RUnlock()
-
-			for _, packet := range packets {
-				if handler != nil {
-					go handler(packet)
-				}
-			}
-		}
-	}()
-
-	return nil
 }
 
 func (t *Track) SetPaused(paused bool) {

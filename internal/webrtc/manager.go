@@ -259,23 +259,25 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, videoID strin
 
 	// audio track
 
-	audioTrack, err := NewTrack(audioStream, logger)
+	audioTrack, err := NewTrack(logger, audioStream.Codec(), connection)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := audioTrack.AddToConnection(connection); err != nil {
+	err = audioTrack.SetStream(audioStream)
+	if err != nil {
 		return nil, err
 	}
 
 	// video track
 
-	videoTrack, err := NewTrack(videoStream, logger)
+	videoTrack, err := NewTrack(logger, videoStream.Codec(), connection)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := videoTrack.AddToConnection(connection); err != nil {
+	err = videoTrack.SetStream(videoStream)
+	if err != nil {
 		return nil, err
 	}
 
