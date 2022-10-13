@@ -224,18 +224,20 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, videoID strin
 
 	// all audios must have the same codec
 	audioStream := manager.capture.Audio()
+	audioCodec := audioStream.Codec()
 
 	// all videos must have the same codec
 	videoStream, ok := manager.capture.Video(videoID)
 	if !ok {
 		return nil, types.ErrWebRTCVideoNotFound
 	}
+	videoCodec := videoStream.Codec()
 
 	manager.metrics.SetVideoID(session, videoID)
 
 	connection, err := manager.newPeerConnection([]codec.RTPCodec{
-		audioStream.Codec(),
-		videoStream.Codec(),
+		audioCodec,
+		videoCodec,
 	}, logger)
 	if err != nil {
 		return nil, err
@@ -259,7 +261,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, videoID strin
 
 	// audio track
 
-	audioTrack, err := NewTrack(logger, audioStream.Codec(), connection)
+	audioTrack, err := NewTrack(logger, audioCodec, connection)
 	if err != nil {
 		return nil, err
 	}
@@ -271,7 +273,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, videoID strin
 
 	// video track
 
-	videoTrack, err := NewTrack(logger, videoStream.Codec(), connection)
+	videoTrack, err := NewTrack(logger, videoCodec, connection)
 	if err != nil {
 		return nil, err
 	}
