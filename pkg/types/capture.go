@@ -19,6 +19,18 @@ var (
 
 type Sample media.Sample
 
+type Track interface {
+	SetStream(stream StreamSinkManager) error
+	RemoveStream()
+	OnBandwidthChange(f func(int))
+}
+
+type BucketsManager interface {
+	Codec() codec.RTPCodec
+	SetReceiver(receiver Track) error
+	RemoveReceiver(receiver Track) error
+}
+
 type BroadcastManager interface {
 	Start(url string) error
 	Stop()
@@ -59,9 +71,8 @@ type CaptureManager interface {
 
 	Broadcast() BroadcastManager
 	Screencast() ScreencastManager
-	Audio() StreamSinkManager
-	Video(videoID string) (StreamSinkManager, bool)
-	VideoIDs() []string
+	Audio() BucketsManager
+	Video() BucketsManager
 
 	Webcam() StreamSrcManager
 	Microphone() StreamSrcManager

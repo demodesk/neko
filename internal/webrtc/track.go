@@ -131,3 +131,7 @@ func (t *Track) OnRTCP(f func(rtcp.Packet)) {
 
 	t.onRtcp = f
 }
+
+func (t *Track) OnBandwidthChange(f func(int)) {
+	// TODO: This lets bucket manager know when bandwidth changes.
+}

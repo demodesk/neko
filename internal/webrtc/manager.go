@@ -214,7 +214,7 @@ func (manager *WebRTCManagerCtx) newPeerConnection(codecs []codec.RTPCodec, logg
 	return api.NewPeerConnection(manager.webrtcConfiguration)
 }
 
-func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, videoID string) (*webrtc.SessionDescription, error) {
+func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.SessionDescription, error) {
 	id := atomic.AddInt32(&manager.peerId, 1)
 	manager.metrics.NewConnection(session)
 
@@ -223,17 +223,15 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, videoID strin
 	logger.Info().Msg("creating webrtc peer")
 
 	// all audios must have the same codec
-	audioStream := manager.capture.Audio()
-	audioCodec := audioStream.Codec()
+	audio := manager.capture.Audio()
+	audioCodec := audio.Codec()
 
 	// all videos must have the same codec
-	videoStream, ok := manager.capture.Video(videoID)
-	if !ok {
-		return nil, types.ErrWebRTCVideoNotFound
-	}
-	videoCodec := videoStream.Codec()
+	video := manager.capture.Video()
+	videoCodec := video.Codec()
 
-	manager.metrics.SetVideoID(session, videoID)
+	// TODO: Metrics
+	//manager.metrics.SetVideoID(session, videoID)
 
 	connection, err := manager.newPeerConnection([]codec.RTPCodec{
 		audioCodec,
@@ -266,7 +264,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, videoID strin
 		return nil, err
 	}
 
-	err = audioTrack.SetStream(audioStream)
+	err = audio.SetReceiver(audioTrack)
 	if err != nil {
 		return nil, err
 	}
@@ -278,7 +276,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, videoID strin
 		return nil, err
 	}
 
-	err = videoTrack.SetStream(videoStream)
+	err = video.SetReceiver(videoTrack)
 	if err != nil {
 		return nil, err
 	}
@@ -294,14 +292,18 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, videoID strin
 		logger:      logger,
 		connection:  connection,
 		dataChannel: dataChannel,
+		// TODO: Remove.
 		changeVideo: func(videoID string) error {
-			videoStream, ok := manager.capture.Video(videoID)
-			if !ok {
-				return types.ErrWebRTCVideoNotFound
-			}
+			return fmt.Errorf("video change not supported")
+			/*
+				videoStream, ok := manager.capture.Video(videoID)
+				if !ok {
+					return types.ErrWebRTCVideoNotFound
+				}
 
-			manager.metrics.SetVideoID(session, videoID)
-			return videoTrack.SetStream(videoStream)
+				manager.metrics.SetVideoID(session, videoID)
+				return videoTrack.SetStream(videoStream)
+			*/
 		},
 		setPaused: func(isPaused bool) {
 			videoTrack.SetPaused(isPaused)

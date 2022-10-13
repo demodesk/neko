@@ -60,6 +60,7 @@ type SignalDescription struct {
 }
 
 type SignalVideo struct {
+	// TODO: Remove.
 	Video string `json:"video"`
 }
 
