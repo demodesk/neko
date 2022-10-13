@@ -1,15 +1,18 @@
 package webrtc
 
 import (
+	"bytes"
+	"encoding/binary"
 	"sync"
 
 	"github.com/pion/webrtc/v3"
 	"github.com/rs/zerolog"
 
+	"github.com/demodesk/neko/internal/webrtc/payload"
 	"github.com/demodesk/neko/pkg/types"
 )
 
-type WebRTCPeerCtx struct {
+type Peer struct {
 	mu          sync.Mutex
 	logger      zerolog.Logger
 	connection  *webrtc.PeerConnection
@@ -19,130 +22,187 @@ type WebRTCPeerCtx struct {
 	iceTrickle  bool
 }
 
-func (peer *WebRTCPeerCtx) CreateOffer(ICERestart bool) (*webrtc.SessionDescription, error) {
-	peer.mu.Lock()
-	defer peer.mu.Unlock()
+func (p *Peer) CreateOffer(ICERestart bool) (*webrtc.SessionDescription, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
-	if peer.connection == nil {
+	if p.connection == nil {
 		return nil, types.ErrWebRTCConnectionNotFound
 	}
 
-	offer, err := peer.connection.CreateOffer(&webrtc.OfferOptions{
+	offer, err := p.connection.CreateOffer(&webrtc.OfferOptions{
 		ICERestart: ICERestart,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return peer.setLocalDescription(offer)
+	return p.setLocalDescription(offer)
 }
 
-func (peer *WebRTCPeerCtx) CreateAnswer() (*webrtc.SessionDescription, error) {
-	peer.mu.Lock()
-	defer peer.mu.Unlock()
+func (p *Peer) CreateAnswer() (*webrtc.SessionDescription, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
-	if peer.connection == nil {
+	if p.connection == nil {
 		return nil, types.ErrWebRTCConnectionNotFound
 	}
 
-	answer, err := peer.connection.CreateAnswer(nil)
+	answer, err := p.connection.CreateAnswer(nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return peer.setLocalDescription(answer)
+	return p.setLocalDescription(answer)
 }
 
-func (peer *WebRTCPeerCtx) setLocalDescription(description webrtc.SessionDescription) (*webrtc.SessionDescription, error) {
-	if !peer.iceTrickle {
+func (p *Peer) setLocalDescription(description webrtc.SessionDescription) (*webrtc.SessionDescription, error) {
+	if !p.iceTrickle {
 		// Create channel that is blocked until ICE Gathering is complete
-		gatherComplete := webrtc.GatheringCompletePromise(peer.connection)
+		gatherComplete := webrtc.GatheringCompletePromise(p.connection)
 
-		if err := peer.connection.SetLocalDescription(description); err != nil {
+		if err := p.connection.SetLocalDescription(description); err != nil {
 			return nil, err
 		}
 
 		<-gatherComplete
 	} else {
-		if err := peer.connection.SetLocalDescription(description); err != nil {
+		if err := p.connection.SetLocalDescription(description); err != nil {
 			return nil, err
 		}
 	}
 
-	return peer.connection.LocalDescription(), nil
+	return p.connection.LocalDescription(), nil
 }
 
-func (peer *WebRTCPeerCtx) SetOffer(sdp string) error {
-	peer.mu.Lock()
-	defer peer.mu.Unlock()
+func (p *Peer) SetOffer(sdp string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
-	if peer.connection == nil {
+	if p.connection == nil {
 		return types.ErrWebRTCConnectionNotFound
 	}
 
-	return peer.connection.SetRemoteDescription(webrtc.SessionDescription{
+	return p.connection.SetRemoteDescription(webrtc.SessionDescription{
 		SDP:  sdp,
 		Type: webrtc.SDPTypeOffer,
 	})
 }
 
-func (peer *WebRTCPeerCtx) SetAnswer(sdp string) error {
-	peer.mu.Lock()
-	defer peer.mu.Unlock()
+func (p *Peer) SetAnswer(sdp string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
-	if peer.connection == nil {
+	if p.connection == nil {
 		return types.ErrWebRTCConnectionNotFound
 	}
 
-	return peer.connection.SetRemoteDescription(webrtc.SessionDescription{
+	return p.connection.SetRemoteDescription(webrtc.SessionDescription{
 		SDP:  sdp,
 		Type: webrtc.SDPTypeAnswer,
 	})
 }
 
-func (peer *WebRTCPeerCtx) SetCandidate(candidate webrtc.ICECandidateInit) error {
-	peer.mu.Lock()
-	defer peer.mu.Unlock()
+func (p *Peer) SetCandidate(candidate webrtc.ICECandidateInit) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
-	if peer.connection == nil {
+	if p.connection == nil {
 		return types.ErrWebRTCConnectionNotFound
 	}
 
-	return peer.connection.AddICECandidate(candidate)
+	return p.connection.AddICECandidate(candidate)
 }
 
-func (peer *WebRTCPeerCtx) SetVideoID(videoID string) error {
-	peer.mu.Lock()
-	defer peer.mu.Unlock()
+func (p *Peer) SetVideoID(videoID string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
-	if peer.connection == nil {
+	if p.connection == nil {
 		return types.ErrWebRTCConnectionNotFound
 	}
 
-	peer.logger.Info().Str("video_id", videoID).Msg("change video id")
-	return peer.changeVideo(videoID)
+	p.logger.Info().Str("video_id", videoID).Msg("change video id")
+	return p.changeVideo(videoID)
 }
 
-func (peer *WebRTCPeerCtx) SetPaused(isPaused bool) error {
-	peer.mu.Lock()
-	defer peer.mu.Unlock()
+func (p *Peer) SetPaused(isPaused bool) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
-	if peer.connection == nil {
+	if p.connection == nil {
 		return types.ErrWebRTCConnectionNotFound
 	}
 
-	peer.logger.Info().Bool("is_paused", isPaused).Msg("set paused")
-	peer.setPaused(isPaused)
+	p.logger.Info().Bool("is_paused", isPaused).Msg("set paused")
+	p.setPaused(isPaused)
 	return nil
 }
 
-func (peer *WebRTCPeerCtx) Destroy() {
-	peer.mu.Lock()
-	defer peer.mu.Unlock()
+func (p *Peer) SendCursorPosition(x, y int) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
-	if peer.connection != nil {
-		err := peer.connection.Close()
-		peer.logger.Err(err).Msg("peer connection destroyed")
-		peer.connection = nil
+	if p.dataChannel == nil {
+		return types.ErrWebRTCDataChannelNotFound
+	}
+
+	data := payload.CursorPosition{
+		Header: payload.Header{
+			Event:  payload.OP_CURSOR_POSITION,
+			Length: 7,
+		},
+		X: uint16(x),
+		Y: uint16(y),
+	}
+
+	buffer := &bytes.Buffer{}
+	if err := binary.Write(buffer, binary.BigEndian, data); err != nil {
+		return err
+	}
+
+	return p.dataChannel.Send(buffer.Bytes())
+}
+
+func (p *Peer) SendCursorImage(cur *types.CursorImage, img []byte) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.dataChannel == nil {
+		return types.ErrWebRTCDataChannelNotFound
+	}
+
+	data := payload.CursorImage{
+		Header: payload.Header{
+			Event:  payload.OP_CURSOR_IMAGE,
+			Length: uint16(11 + len(img)),
+		},
+		Width:  cur.Width,
+		Height: cur.Height,
+		Xhot:   cur.Xhot,
+		Yhot:   cur.Yhot,
+	}
+
+	buffer := &bytes.Buffer{}
+
+	if err := binary.Write(buffer, binary.BigEndian, data); err != nil {
+		return err
+	}
+
+	if err := binary.Write(buffer, binary.BigEndian, img); err != nil {
+		return err
+	}
+
+	return p.dataChannel.Send(buffer.Bytes())
+}
+
+func (p *Peer) Destroy() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.connection != nil {
+		err := p.connection.Close()
+		p.logger.Err(err).Msg("peer connection destroyed")
+		p.connection = nil
 	}
 }
