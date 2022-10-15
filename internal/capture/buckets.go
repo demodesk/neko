@@ -3,10 +3,11 @@ package capture
 import (
 	"errors"
 
-	"github.com/demodesk/neko/pkg/types"
-	"github.com/demodesk/neko/pkg/types/codec"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+
+	"github.com/demodesk/neko/pkg/types"
+	"github.com/demodesk/neko/pkg/types/codec"
 )
 
 type BucketsManagerCtx struct {
@@ -63,7 +64,7 @@ func (m *BucketsManagerCtx) Codec() codec.RTPCodec {
 	return m.codec
 }
 
-func (m *BucketsManagerCtx) SetReceiver(receiver types.Track) error {
+func (m *BucketsManagerCtx) SetReceiver(receiver types.Receiver) error {
 	receiver.OnVideoIdChange(func(videoID string) error {
 		videoStream, ok := m.streams[videoID]
 		if !ok {
@@ -77,7 +78,7 @@ func (m *BucketsManagerCtx) SetReceiver(receiver types.Track) error {
 	return nil
 }
 
-func (m *BucketsManagerCtx) RemoveReceiver(receiver types.Track) error {
+func (m *BucketsManagerCtx) RemoveReceiver(receiver types.Receiver) error {
 	// TODO: Unsubribe from OnVideoIdChange.
 	// TODO: Remove receiver.
 	receiver.RemoveStream()

@@ -19,7 +19,7 @@ var (
 
 type Sample media.Sample
 
-type Track interface {
+type Receiver interface {
 	SetStream(stream StreamSinkManager) error
 	RemoveStream()
 	OnVideoIdChange(f func(string) error)
@@ -28,8 +28,8 @@ type Track interface {
 type BucketsManager interface {
 	IDs() []string
 	Codec() codec.RTPCodec
-	SetReceiver(receiver Track) error
-	RemoveReceiver(receiver Track) error
+	SetReceiver(receiver Receiver) error
+	RemoveReceiver(receiver Receiver) error
 }
 
 type BroadcastManager interface {
