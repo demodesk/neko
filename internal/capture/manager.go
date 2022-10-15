@@ -133,7 +133,7 @@ func New(desktop types.DesktopManager, config *config.Capture) *CaptureManagerCt
 					"! appsink name=appsink", config.AudioDevice, config.AudioCodec.Pipeline,
 			), nil
 		}, "audio"),
-		video: bucketsNew(config.VideoCodec, videos["hq"]),
+		video: bucketsNew(config.VideoCodec, videos, config.VideoIDs),
 
 		// sources
 		webcam: streamSrcNew(config.WebcamEnabled, map[string]string{

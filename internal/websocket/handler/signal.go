@@ -13,7 +13,13 @@ func (h *MessageHandlerCtx) signalRequest(session types.Session, payload *messag
 		return errors.New("not allowed to watch")
 	}
 
-	offer, err := h.webrtc.CreatePeer(session)
+	// use default first video, if not provided
+	if payload.Video == "" {
+		videos := h.capture.Video().IDs()
+		payload.Video = videos[0]
+	}
+
+	offer, err := h.webrtc.CreatePeer(session, payload.Video)
 	if err != nil {
 		return err
 	}
@@ -28,7 +34,7 @@ func (h *MessageHandlerCtx) signalRequest(session types.Session, payload *messag
 		message.SignalProvide{
 			SDP:        offer.SDP,
 			ICEServers: h.webrtc.ICEServers(),
-			Video:      "no-video", // TODO: Remove.
+			Video:      payload.Video,
 		})
 
 	return nil

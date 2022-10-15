@@ -214,7 +214,7 @@ func (manager *WebRTCManagerCtx) newPeerConnection(codecs []codec.RTPCodec, logg
 	return api.NewPeerConnection(manager.webrtcConfiguration)
 }
 
-func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.SessionDescription, error) {
+func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, videoID string) (*webrtc.SessionDescription, error) {
 	id := atomic.AddInt32(&manager.peerId, 1)
 	manager.metrics.NewConnection(session)
 
@@ -230,8 +230,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 	video := manager.capture.Video()
 	videoCodec := video.Codec()
 
-	// TODO: Metrics
-	//manager.metrics.SetVideoID(session, videoID)
+	manager.metrics.SetVideoID(session, videoID)
 
 	connection, err := manager.newPeerConnection([]codec.RTPCodec{
 		audioCodec,
@@ -282,6 +281,8 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 	if err != nil {
 		return nil, err
 	}
+
+	// TODO: Set default videoID.
 
 	// data channel
 

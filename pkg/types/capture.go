@@ -26,6 +26,7 @@ type Track interface {
 }
 
 type BucketsManager interface {
+	IDs() []string
 	Codec() codec.RTPCodec
 	SetReceiver(receiver Track) error
 	RemoveReceiver(receiver Track) error

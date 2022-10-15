@@ -8,21 +8,23 @@ import (
 )
 
 type BucketsManagerCtx struct {
-	logger zerolog.Logger
-	codec  codec.RTPCodec
-	stream types.StreamSinkManager
+	logger    zerolog.Logger
+	codec     codec.RTPCodec
+	streams   map[string]*StreamSinkManagerCtx
+	streamIDs []string
 }
 
-func bucketsNew(codec codec.RTPCodec, stream types.StreamSinkManager) *BucketsManagerCtx {
+func bucketsNew(codec codec.RTPCodec, streams map[string]*StreamSinkManagerCtx, streamIDs []string) *BucketsManagerCtx {
 	logger := log.With().
 		Str("module", "capture").
 		Str("submodule", "buckets").
 		Logger()
 
 	return &BucketsManagerCtx{
-		logger: logger,
-		codec:  codec,
-		stream: stream,
+		logger:    logger,
+		codec:     codec,
+		streams:   streams,
+		streamIDs: streamIDs,
 	}
 }
 
@@ -39,13 +41,17 @@ func (m *BucketsManagerCtx) recreateAll() error {
 	return nil
 }
 
+func (m *BucketsManagerCtx) IDs() []string {
+	return m.streamIDs
+}
+
 func (m *BucketsManagerCtx) Codec() codec.RTPCodec {
 	return m.codec
 }
 
 func (m *BucketsManagerCtx) SetReceiver(receiver types.Track) error {
 	// TODO: Save receiver.
-	return receiver.SetStream(m.stream)
+	return receiver.SetStream(m.streams[m.streamIDs[0]])
 }
 
 func (m *BucketsManagerCtx) RemoveReceiver(receiver types.Track) error {
