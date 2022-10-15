@@ -2,6 +2,7 @@ package webrtc
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 
@@ -25,6 +26,8 @@ type Track struct {
 
 	onRtcp   func(rtcp.Packet)
 	onRtcpMu sync.RWMutex
+
+	videoIdChange func(string) error
 }
 
 func NewTrack(logger zerolog.Logger, codec codec.RTPCodec, connection *webrtc.PeerConnection) (*Track, error) {
@@ -132,6 +135,14 @@ func (t *Track) OnRTCP(f func(rtcp.Packet)) {
 	t.onRtcp = f
 }
 
-func (t *Track) OnBandwidthChange(f func(int)) {
-	// TODO: This lets bucket manager know when bandwidth changes.
+func (t *Track) SetVideoID(videoID string) error {
+	if t.videoIdChange == nil {
+		return fmt.Errorf("video id change not supported")
+	}
+
+	return t.videoIdChange(videoID)
+}
+
+func (t *Track) OnVideoIdChange(f func(string) error) {
+	t.videoIdChange = f
 }

@@ -64,11 +64,21 @@ func (m *BucketsManagerCtx) Codec() codec.RTPCodec {
 }
 
 func (m *BucketsManagerCtx) SetReceiver(receiver types.Track) error {
+	receiver.OnVideoIdChange(func(videoID string) error {
+		videoStream, ok := m.streams[videoID]
+		if !ok {
+			return types.ErrWebRTCVideoNotFound
+		}
+
+		return receiver.SetStream(videoStream)
+	})
+
 	// TODO: Save receiver.
-	return receiver.SetStream(m.streams[m.streamIDs[0]])
+	return nil
 }
 
 func (m *BucketsManagerCtx) RemoveReceiver(receiver types.Track) error {
+	// TODO: Unsubribe from OnVideoIdChange.
 	// TODO: Remove receiver.
 	receiver.RemoveStream()
 	return nil

@@ -22,7 +22,7 @@ type Sample media.Sample
 type Track interface {
 	SetStream(stream StreamSinkManager) error
 	RemoveStream()
-	OnBandwidthChange(f func(int))
+	OnVideoIdChange(f func(string) error)
 }
 
 type BucketsManager interface {

@@ -230,8 +230,6 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, videoID strin
 	video := manager.capture.Video()
 	videoCodec := video.Codec()
 
-	manager.metrics.SetVideoID(session, videoID)
-
 	connection, err := manager.newPeerConnection([]codec.RTPCodec{
 		audioCodec,
 		videoCodec,
@@ -282,7 +280,12 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, videoID strin
 		return nil, err
 	}
 
-	// TODO: Set default videoID.
+	// set default video id
+	err = videoTrack.SetVideoID(videoID)
+	if err != nil {
+		return nil, err
+	}
+	manager.metrics.SetVideoID(session, videoID)
 
 	// data channel
 
@@ -295,18 +298,13 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, videoID strin
 		logger:      logger,
 		connection:  connection,
 		dataChannel: dataChannel,
-		// TODO: Remove.
 		changeVideo: func(videoID string) error {
-			return fmt.Errorf("video change not supported")
-			/*
-				videoStream, ok := manager.capture.Video(videoID)
-				if !ok {
-					return types.ErrWebRTCVideoNotFound
-				}
+			if err := videoTrack.SetVideoID(videoID); err != nil {
+				return err
+			}
 
-				manager.metrics.SetVideoID(session, videoID)
-				return videoTrack.SetStream(videoStream)
-			*/
+			manager.metrics.SetVideoID(session, videoID)
+			return nil
 		},
 		setPaused: func(isPaused bool) {
 			videoTrack.SetPaused(isPaused)
@@ -420,7 +418,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, videoID strin
 			connection.Close()
 		case webrtc.PeerConnectionStateClosed:
 			session.SetWebRTCConnected(peer, false)
-			videoTrack.RemoveStream()
+			video.RemoveReceiver(videoTrack)
 			audioTrack.RemoveStream()
 		}
 
