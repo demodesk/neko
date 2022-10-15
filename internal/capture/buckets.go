@@ -1,6 +1,8 @@
 package capture
 
 import (
+	"errors"
+
 	"github.com/demodesk/neko/pkg/types"
 	"github.com/demodesk/neko/pkg/types/codec"
 	"github.com/rs/zerolog"
@@ -33,11 +35,23 @@ func (m *BucketsManagerCtx) shutdown() {
 }
 
 func (m *BucketsManagerCtx) destroyAll() {
-	// destroy all pipelines
+	for _, video := range m.streams {
+		if video.Started() {
+			video.destroyPipeline()
+		}
+	}
 }
 
 func (m *BucketsManagerCtx) recreateAll() error {
-	// start all pipelines
+	for _, video := range m.streams {
+		if video.Started() {
+			err := video.createPipeline()
+			if err != nil && !errors.Is(err, types.ErrCapturePipelineAlreadyExists) {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
