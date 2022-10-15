@@ -290,7 +290,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 		return nil, err
 	}
 
-	peer := &Peer{
+	peer := &WebRTCPeerCtx{
 		logger:      logger,
 		connection:  connection,
 		dataChannel: dataChannel,
