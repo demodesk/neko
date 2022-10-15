@@ -71,7 +71,7 @@ type CaptureManager interface {
 
 	Broadcast() BroadcastManager
 	Screencast() ScreencastManager
-	Audio() BucketsManager
+	Audio() StreamSinkManager
 	Video() BucketsManager
 
 	Webcam() StreamSrcManager

@@ -20,7 +20,7 @@ type CaptureManagerCtx struct {
 	// sinks
 	broadcast  *BroacastManagerCtx
 	screencast *ScreencastManagerCtx
-	audio      *BucketsManagerCtx
+	audio      *StreamSinkManagerCtx
 	video      *BucketsManagerCtx
 
 	// sources
@@ -70,24 +70,6 @@ func New(desktop types.DesktopManager, config *config.Capture) *CaptureManagerCt
 		videos[video_id] = streamSinkNew(config.VideoCodec, createPipeline, video_id)
 	}
 
-	audio := streamSinkNew(config.AudioCodec, func() (string, error) {
-		if config.AudioPipeline != "" {
-			// replace {device} with valid device
-			return strings.Replace(config.AudioPipeline, "{device}", config.AudioDevice, 1), nil
-		}
-
-		return fmt.Sprintf(
-			"pulsesrc device=%s "+
-				"! audio/x-raw,channels=2 "+
-				"! audioconvert "+
-				"! queue "+
-				"! %s "+
-				"! appsink name=appsink", config.AudioDevice, config.AudioCodec.Pipeline,
-		), nil
-	}, "audio")
-
-	log.Info().Interface("videos", videos).Interface("audio", audio).Msg("videos + audio")
-
 	return &CaptureManagerCtx{
 		logger:  logger,
 		desktop: desktop,
@@ -136,7 +118,21 @@ func New(desktop types.DesktopManager, config *config.Capture) *CaptureManagerCt
 			)
 		}()),
 
-		audio: bucketsNew(config.AudioCodec, audio),
+		audio: streamSinkNew(config.AudioCodec, func() (string, error) {
+			if config.AudioPipeline != "" {
+				// replace {device} with valid device
+				return strings.Replace(config.AudioPipeline, "{device}", config.AudioDevice, 1), nil
+			}
+
+			return fmt.Sprintf(
+				"pulsesrc device=%s "+
+					"! audio/x-raw,channels=2 "+
+					"! audioconvert "+
+					"! queue "+
+					"! %s "+
+					"! appsink name=appsink", config.AudioDevice, config.AudioCodec.Pipeline,
+			), nil
+		}, "audio"),
 		video: bucketsNew(config.VideoCodec, videos["hq"]),
 
 		// sources
@@ -254,7 +250,7 @@ func (manager *CaptureManagerCtx) Screencast() types.ScreencastManager {
 	return manager.screencast
 }
 
-func (manager *CaptureManagerCtx) Audio() types.BucketsManager {
+func (manager *CaptureManagerCtx) Audio() types.StreamSinkManager {
 	return manager.audio
 }
 

@@ -264,7 +264,8 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 		return nil, err
 	}
 
-	err = audio.SetReceiver(audioTrack)
+	// set stream for audio track
+	err = audioTrack.SetStream(audio)
 	if err != nil {
 		return nil, err
 	}
@@ -276,6 +277,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 		return nil, err
 	}
 
+	// let video stream bucket manager handle stream subscriptions
 	err = video.SetReceiver(videoTrack)
 	if err != nil {
 		return nil, err
