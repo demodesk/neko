@@ -22,7 +22,7 @@ type Sample media.Sample
 type Receiver interface {
 	SetStream(stream StreamSinkManager) error
 	RemoveStream()
-	OnVideoIdChange(f func(string) error)
+	OnStreamBitrateChange(f func(int) error)
 }
 
 type BucketsManager interface {
@@ -46,6 +46,7 @@ type ScreencastManager interface {
 }
 
 type StreamSinkManager interface {
+	ID() string
 	Codec() codec.RTPCodec
 
 	AddListener(listener *func(sample Sample)) error
@@ -172,4 +173,29 @@ func (config *VideoConfig) GetPipeline(screen ScreenSize) (string, error) {
 		encPipeline,
 		config.GstSuffix,
 	}[:], " "), nil
+}
+
+func (config *VideoConfig) GetTargetBitrate(screen ScreenSize) (int, error) {
+	values := map[string]any{
+		"width":  screen.Width,
+		"height": screen.Height,
+	}
+
+	language := []gval.Language{
+		gval.Function("round", func(args ...any) (any, error) {
+			return (int)(math.Round(args[0].(float64))), nil
+		}),
+	}
+
+	expr, ok := config.GstParams["target-bitrate"]
+	if !ok {
+		return 0, fmt.Errorf("target-bitrate not found")
+	}
+
+	targetBitrate, err := gval.Evaluate(expr, values, language...)
+	if err != nil {
+		return 0, err
+	}
+
+	return targetBitrate.(int), nil
 }

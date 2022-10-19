@@ -60,7 +60,8 @@ type SignalDescription struct {
 }
 
 type SignalVideo struct {
-	Video string `json:"video"`
+	Video   string `json:"video"`
+	Bitrate int    `json:"bitrate"`
 }
 
 /////////////////////////////

@@ -2,6 +2,7 @@ package capture
 
 import (
 	"errors"
+	"math"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -36,17 +37,17 @@ func (m *BucketsManagerCtx) shutdown() {
 }
 
 func (m *BucketsManagerCtx) destroyAll() {
-	for _, video := range m.streams {
-		if video.Started() {
-			video.destroyPipeline()
+	for _, stream := range m.streams {
+		if stream.Started() {
+			stream.destroyPipeline()
 		}
 	}
 }
 
 func (m *BucketsManagerCtx) recreateAll() error {
-	for _, video := range m.streams {
-		if video.Started() {
-			err := video.createPipeline()
+	for _, stream := range m.streams {
+		if stream.Started() {
+			err := stream.createPipeline()
 			if err != nil && !errors.Is(err, types.ErrCapturePipelineAlreadyExists) {
 				return err
 			}
@@ -65,22 +66,33 @@ func (m *BucketsManagerCtx) Codec() codec.RTPCodec {
 }
 
 func (m *BucketsManagerCtx) SetReceiver(receiver types.Receiver) error {
-	receiver.OnVideoIdChange(func(videoID string) error {
-		videoStream, ok := m.streams[videoID]
+	receiver.OnStreamBitrateChange(func(bitrate int) error {
+		stream, ok := m.findNearestStream(bitrate)
 		if !ok {
-			return types.ErrWebRTCVideoNotFound
+			return types.ErrWebRTCStreamNotFound
 		}
 
-		return receiver.SetStream(videoStream)
+		return receiver.SetStream(stream)
 	})
 
-	// TODO: Save receiver.
 	return nil
 }
 
+func (m *BucketsManagerCtx) findNearestStream(bitrate int) (ss *StreamSinkManagerCtx, ok bool) {
+	minDiff := bitrate
+	for _, s := range m.streams {
+		diffAbs := int(math.Abs(float64(bitrate - s.bitrate)))
+		if diffAbs < minDiff {
+			minDiff = diffAbs
+			ss = s
+		}
+	}
+	ok = ss != nil
+	return
+}
+
 func (m *BucketsManagerCtx) RemoveReceiver(receiver types.Receiver) error {
-	// TODO: Unsubribe from OnVideoIdChange.
-	// TODO: Remove receiver.
+	receiver.OnStreamBitrateChange(nil)
 	receiver.RemoveStream()
 	return nil
 }
