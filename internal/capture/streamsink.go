@@ -61,7 +61,7 @@ func streamSinkNew(codec codec.RTPCodec, pipelineFn func() (string, error), stre
 			Subsystem: "capture",
 			Help:      "Current number of listeners for a pipeline.",
 			ConstLabels: map[string]string{
-				"streamI_id": streamID,
+				"stream_id":  streamID,
 				"bitrate":    fmt.Sprint(bitrate),
 				"codec_name": codec.Name,
 				"codec_type": codec.Type.String(),
