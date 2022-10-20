@@ -18,10 +18,11 @@ type CaptureManagerCtx struct {
 	desktop types.DesktopManager
 
 	// sinks
-	broadcast  *BroacastManagerCtx
-	screencast *ScreencastManagerCtx
-	audio      *StreamSinkManagerCtx
-	video      *BucketsManagerCtx
+	broadcast        *BroacastManagerCtx
+	screencast       *ScreencastManagerCtx
+	audio            *StreamSinkManagerCtx
+	video            *BucketsManagerCtx
+	getTargetBitrate func(string) (int, error)
 
 	// sources
 	webcam     *StreamSrcManagerCtx
@@ -32,6 +33,16 @@ func New(desktop types.DesktopManager, config *config.Capture) *CaptureManagerCt
 	logger := log.With().Str("module", "capture").Logger()
 
 	videos := map[string]*StreamSinkManagerCtx{}
+
+	getTargetBitrate := func(videoID string) (int, error) {
+		cfg, ok := config.VideoPipelines[videoID]
+		if !ok {
+			return 0, fmt.Errorf("video config not found for %s", videoID)
+		}
+		screen := desktop.GetScreenSize()
+		return cfg.GetTargetBitrate(*screen)
+	}
+
 	for video_id, cnf := range config.VideoPipelines {
 		pipelineConf := cnf
 
@@ -78,6 +89,8 @@ func New(desktop types.DesktopManager, config *config.Capture) *CaptureManagerCt
 	return &CaptureManagerCtx{
 		logger:  logger,
 		desktop: desktop,
+
+		getTargetBitrate: getTargetBitrate,
 
 		// sinks
 		broadcast: broadcastNew(func(url string) (string, error) {
@@ -245,6 +258,10 @@ func (manager *CaptureManagerCtx) Shutdown() error {
 	manager.microphone.shutdown()
 
 	return nil
+}
+
+func (manager *CaptureManagerCtx) TargetBitrateFromVideoID(videoID string) (int, error) {
+	return manager.getTargetBitrate(videoID)
 }
 
 func (manager *CaptureManagerCtx) Broadcast() types.BroadcastManager {

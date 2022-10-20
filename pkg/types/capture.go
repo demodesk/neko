@@ -71,6 +71,8 @@ type CaptureManager interface {
 	Start()
 	Shutdown() error
 
+	TargetBitrateFromVideoID(videoID string) (int, error)
+
 	Broadcast() BroadcastManager
 	Screencast() ScreencastManager
 	Audio() StreamSinkManager

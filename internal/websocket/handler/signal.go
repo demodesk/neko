@@ -19,7 +19,12 @@ func (h *MessageHandlerCtx) signalRequest(session types.Session, payload *messag
 		payload.Video = videos[0]
 	}
 
-	offer, err := h.webrtc.CreatePeer(session, payload.Bitrate)
+	bitrate, err := h.capture.TargetBitrateFromVideoID(payload.Video)
+	if err != nil {
+		return err
+	}
+
+	offer, err := h.webrtc.CreatePeer(session, bitrate)
 	if err != nil {
 		return err
 	}
@@ -110,15 +115,19 @@ func (h *MessageHandlerCtx) signalVideo(session types.Session, payload *message.
 		return errors.New("webRTC peer does not exist")
 	}
 
-	err := peer.SetVideoBitrate(payload.Bitrate)
+	bitrate, err := h.capture.TargetBitrateFromVideoID(payload.Video)
 	if err != nil {
+		return err
+	}
+
+	if err = peer.SetVideoBitrate(bitrate); err != nil {
 		return err
 	}
 
 	session.Send(
 		event.SIGNAL_VIDEO,
 		message.SignalVideo{
-			Bitrate: payload.Bitrate,
+			Video: payload.Video,
 		})
 
 	return nil
