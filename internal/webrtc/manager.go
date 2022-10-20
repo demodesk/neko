@@ -308,6 +308,10 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int) 
 			manager.metrics.SetVideoID(session, videoID)
 			return nil
 		},
+		// TODO: Refactor.
+		videoId: func() string {
+			return videoTrack.stream.ID()
+		},
 		setPaused: func(isPaused bool) {
 			videoTrack.SetPaused(isPaused)
 			audioTrack.SetPaused(isPaused)

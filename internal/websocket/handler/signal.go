@@ -19,19 +19,27 @@ func (h *MessageHandlerCtx) signalRequest(session types.Session, payload *messag
 		payload.Video = videos[0]
 	}
 
-	bitrate, err := h.capture.TargetBitrateFromVideoID(payload.Video)
+	var err error
+	if payload.Bitrate == 0 {
+		// get bitrate from video id
+		payload.Bitrate, err = h.capture.TargetBitrateFromVideoID(payload.Video)
+		if err != nil {
+			return err
+		}
+	}
+
+	offer, err := h.webrtc.CreatePeer(session, payload.Bitrate)
 	if err != nil {
 		return err
 	}
 
-	offer, err := h.webrtc.CreatePeer(session, bitrate)
-	if err != nil {
-		return err
-	}
+	if webrtcPeer := session.GetWebRTCPeer(); webrtcPeer != nil {
+		// set webrtc as paused if session has private mode enabled
+		if session.PrivateModeEnabled() {
+			webrtcPeer.SetPaused(true)
+		}
 
-	// set webrtc as paused if session has private mode enabled
-	if webrtcPeer := session.GetWebRTCPeer(); webrtcPeer != nil && session.PrivateModeEnabled() {
-		webrtcPeer.SetPaused(true)
+		payload.Video = webrtcPeer.GetVideoId()
 	}
 
 	session.Send(
@@ -39,7 +47,7 @@ func (h *MessageHandlerCtx) signalRequest(session types.Session, payload *messag
 		message.SignalProvide{
 			SDP:        offer.SDP,
 			ICEServers: h.webrtc.ICEServers(),
-			Video:      payload.Video,
+			Video:      payload.Video, // TODO: Refactor.
 		})
 
 	return nil
@@ -115,19 +123,24 @@ func (h *MessageHandlerCtx) signalVideo(session types.Session, payload *message.
 		return errors.New("webRTC peer does not exist")
 	}
 
-	bitrate, err := h.capture.TargetBitrateFromVideoID(payload.Video)
-	if err != nil {
-		return err
+	var err error
+	if payload.Bitrate == 0 {
+		// get bitrate from video id
+		payload.Bitrate, err = h.capture.TargetBitrateFromVideoID(payload.Video)
+		if err != nil {
+			return err
+		}
 	}
 
-	if err = peer.SetVideoBitrate(bitrate); err != nil {
+	if err = peer.SetVideoBitrate(payload.Bitrate); err != nil {
 		return err
 	}
 
 	session.Send(
 		event.SIGNAL_VIDEO,
 		message.SignalVideo{
-			Video: payload.Video,
+			Video:   peer.GetVideoId(), // TODO: Refactor.
+			Bitrate: payload.Bitrate,
 		})
 
 	return nil
