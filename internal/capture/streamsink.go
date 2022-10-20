@@ -2,7 +2,6 @@ package capture
 
 import (
 	"errors"
-	"fmt"
 	"reflect"
 	"sync"
 
@@ -61,8 +60,7 @@ func streamSinkNew(codec codec.RTPCodec, pipelineFn func() (string, error), stre
 			Subsystem: "capture",
 			Help:      "Current number of listeners for a pipeline.",
 			ConstLabels: map[string]string{
-				"stream_id":  streamID,
-				"bitrate":    fmt.Sprint(bitrate),
+				"video_id":   streamID,
 				"codec_name": codec.Name,
 				"codec_type": codec.Type.String(),
 			},
@@ -74,8 +72,7 @@ func streamSinkNew(codec codec.RTPCodec, pipelineFn func() (string, error), stre
 			Help:      "Total number of created pipelines.",
 			ConstLabels: map[string]string{
 				"submodule":  "streamsink",
-				"stream_id":  streamID,
-				"bitrate":    fmt.Sprint(bitrate),
+				"video_id":   streamID,
 				"codec_name": codec.Name,
 				"codec_type": codec.Type.String(),
 			},
@@ -87,8 +84,7 @@ func streamSinkNew(codec codec.RTPCodec, pipelineFn func() (string, error), stre
 			Help:      "Total number of active pipelines.",
 			ConstLabels: map[string]string{
 				"submodule":  "streamsink",
-				"stream_id":  streamID,
-				"bitrate":    fmt.Sprint(bitrate),
+				"video_id":   streamID,
 				"codec_name": codec.Name,
 				"codec_type": codec.Type.String(),
 			},
