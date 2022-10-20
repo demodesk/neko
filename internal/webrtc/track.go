@@ -100,6 +100,10 @@ func (t *Track) SetStream(stream types.StreamSinkManager) error {
 	t.streamMu.Lock()
 	defer t.streamMu.Unlock()
 
+	if t.stream == stream {
+		return nil
+	}
+
 	var err error
 	if t.stream != nil {
 		err = t.stream.MoveListenerTo(&t.listener, stream)
