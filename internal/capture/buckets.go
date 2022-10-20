@@ -2,6 +2,7 @@ package capture
 
 import (
 	"errors"
+	"fmt"
 	"math"
 
 	"github.com/rs/zerolog"
@@ -66,10 +67,10 @@ func (m *BucketsManagerCtx) Codec() codec.RTPCodec {
 }
 
 func (m *BucketsManagerCtx) SetReceiver(receiver types.Receiver) error {
-	receiver.OnStreamBitrateChange(func(bitrate int) error {
+	receiver.OnBitrateChange(func(bitrate int) error {
 		stream, ok := m.findNearestStream(bitrate)
 		if !ok {
-			return types.ErrWebRTCStreamNotFound
+			return fmt.Errorf("no stream found for bitrate %d", bitrate)
 		}
 
 		return receiver.SetStream(stream)
@@ -92,7 +93,7 @@ func (m *BucketsManagerCtx) findNearestStream(bitrate int) (ss *StreamSinkManage
 }
 
 func (m *BucketsManagerCtx) RemoveReceiver(receiver types.Receiver) error {
-	receiver.OnStreamBitrateChange(nil)
+	receiver.OnBitrateChange(nil)
 	receiver.RemoveStream()
 	return nil
 }

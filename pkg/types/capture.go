@@ -22,7 +22,7 @@ type Sample media.Sample
 type Receiver interface {
 	SetStream(stream StreamSinkManager) error
 	RemoveStream()
-	OnStreamBitrateChange(f func(int) error)
+	OnBitrateChange(f func(int) error)
 }
 
 type BucketsManager interface {
@@ -189,6 +189,7 @@ func (config *VideoConfig) GetTargetBitrate(screen ScreenSize) (int, error) {
 		}),
 	}
 
+	// TODO: This is only for vp8.
 	expr, ok := config.GstParams["target-bitrate"]
 	if !ok {
 		return 0, fmt.Errorf("target-bitrate not found")

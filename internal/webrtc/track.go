@@ -27,7 +27,7 @@ type Track struct {
 	onRtcp   func(rtcp.Packet)
 	onRtcpMu sync.RWMutex
 
-	videoBitrateChange func(int) error
+	bitrateChange func(int) error
 }
 
 func NewTrack(logger zerolog.Logger, codec codec.RTPCodec, connection *webrtc.PeerConnection) (*Track, error) {
@@ -136,13 +136,13 @@ func (t *Track) OnRTCP(f func(rtcp.Packet)) {
 }
 
 func (t *Track) SetBitrate(bitrate int) error {
-	if t.videoBitrateChange == nil {
+	if t.bitrateChange == nil {
 		return fmt.Errorf("bitrate change not supported")
 	}
 
-	return t.videoBitrateChange(bitrate)
+	return t.bitrateChange(bitrate)
 }
 
-func (t *Track) OnStreamBitrateChange(f func(int) error) {
-	t.videoBitrateChange = f
+func (t *Track) OnBitrateChange(f func(int) error) {
+	t.bitrateChange = f
 }

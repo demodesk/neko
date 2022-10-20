@@ -7,7 +7,6 @@ import (
 )
 
 var (
-	ErrWebRTCStreamNotFound      = errors.New("webrtc video not found")
 	ErrWebRTCDataChannelNotFound = errors.New("webrtc data channel not found")
 	ErrWebRTCConnectionNotFound  = errors.New("webrtc connection not found")
 )

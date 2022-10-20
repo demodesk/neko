@@ -19,7 +19,9 @@ import (
 var moveSinkListenerMu = sync.Mutex{}
 
 type StreamSinkManagerCtx struct {
-	id     string
+	id      string
+	bitrate int // estimation of the actual bitrate
+
 	logger zerolog.Logger
 	mu     sync.Mutex
 	wg     sync.WaitGroup
@@ -28,7 +30,6 @@ type StreamSinkManagerCtx struct {
 	pipeline   gst.Pipeline
 	pipelineMu sync.Mutex
 	pipelineFn func() (string, error)
-	bitrate    int // estimation of the actual bitrate
 
 	listeners   map[uintptr]*func(sample types.Sample)
 	listenersMu sync.Mutex
@@ -39,19 +40,20 @@ type StreamSinkManagerCtx struct {
 	pipelinesActive  prometheus.Gauge
 }
 
-func streamSinkNew(codec codec.RTPCodec, pipelineFn func() (string, error), streamID string, bitrate int) *StreamSinkManagerCtx {
+func streamSinkNew(codec codec.RTPCodec, pipelineFn func() (string, error), id string, bitrate int) *StreamSinkManagerCtx {
 	logger := log.With().
 		Str("module", "capture").
 		Str("submodule", "stream-sink").
-		Str("streamID", streamID).Logger()
+		Str("id", id).Logger()
 
 	manager := &StreamSinkManagerCtx{
-		id:         streamID,
+		id:      id,
+		bitrate: bitrate,
+
 		logger:     logger,
 		codec:      codec,
 		pipelineFn: pipelineFn,
 		listeners:  map[uintptr]*func(sample types.Sample){},
-		bitrate:    bitrate,
 
 		// metrics
 		currentListeners: promauto.NewGauge(prometheus.GaugeOpts{
@@ -60,7 +62,7 @@ func streamSinkNew(codec codec.RTPCodec, pipelineFn func() (string, error), stre
 			Subsystem: "capture",
 			Help:      "Current number of listeners for a pipeline.",
 			ConstLabels: map[string]string{
-				"video_id":   streamID,
+				"video_id":   id,
 				"codec_name": codec.Name,
 				"codec_type": codec.Type.String(),
 			},
@@ -72,7 +74,7 @@ func streamSinkNew(codec codec.RTPCodec, pipelineFn func() (string, error), stre
 			Help:      "Total number of created pipelines.",
 			ConstLabels: map[string]string{
 				"submodule":  "streamsink",
-				"video_id":   streamID,
+				"video_id":   id,
 				"codec_name": codec.Name,
 				"codec_type": codec.Type.String(),
 			},
@@ -84,7 +86,7 @@ func streamSinkNew(codec codec.RTPCodec, pipelineFn func() (string, error), stre
 			Help:      "Total number of active pipelines.",
 			ConstLabels: map[string]string{
 				"submodule":  "streamsink",
-				"video_id":   streamID,
+				"video_id":   id,
 				"codec_name": codec.Name,
 				"codec_type": codec.Type.String(),
 			},
@@ -109,6 +111,10 @@ func (manager *StreamSinkManagerCtx) shutdown() {
 
 func (manager *StreamSinkManagerCtx) ID() string {
 	return manager.id
+}
+
+func (manager *StreamSinkManagerCtx) Bitrate() int {
+	return manager.bitrate
 }
 
 func (manager *StreamSinkManagerCtx) Codec() codec.RTPCodec {
