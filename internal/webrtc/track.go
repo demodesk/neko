@@ -100,6 +100,7 @@ func (t *Track) SetStream(stream types.StreamSinkManager) error {
 	t.streamMu.Lock()
 	defer t.streamMu.Unlock()
 
+	// if we already listen to the stream, do nothing
 	if t.stream == stream {
 		return nil
 	}
