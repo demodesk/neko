@@ -22,7 +22,7 @@ func (h *MessageHandlerCtx) signalRequest(session types.Session, payload *messag
 	var err error
 	if payload.Bitrate == 0 {
 		// get bitrate from video id
-		payload.Bitrate, err = h.capture.TargetBitrateFromVideoID(payload.Video)
+		payload.Bitrate, err = h.capture.GetBitrateFromVideoID(payload.Video)
 		if err != nil {
 			return err
 		}
@@ -126,7 +126,7 @@ func (h *MessageHandlerCtx) signalVideo(session types.Session, payload *message.
 	var err error
 	if payload.Bitrate == 0 {
 		// get bitrate from video id
-		payload.Bitrate, err = h.capture.TargetBitrateFromVideoID(payload.Video)
+		payload.Bitrate, err = h.capture.GetBitrateFromVideoID(payload.Video)
 		if err != nil {
 			return err
 		}

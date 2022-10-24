@@ -80,12 +80,18 @@ func (m *BucketsManagerCtx) SetReceiver(receiver types.Receiver) error {
 }
 
 func (m *BucketsManagerCtx) findNearestStream(bitrate int) (ss *StreamSinkManagerCtx, ok bool) {
-	minDiff := bitrate
+	minDiff := math.MaxInt
 	for _, s := range m.streams {
-		diffAbs := int(math.Abs(float64(bitrate - s.bitrate)))
+		streamBitrate, err := s.Bitrate()
+		if err != nil {
+			m.logger.Error().Err(err).Msgf("failed to get bitrate for stream %s", s.ID())
+			continue
+		}
+
+		diffAbs := int(math.Abs(float64(bitrate - streamBitrate)))
+
 		if diffAbs < minDiff {
-			minDiff = diffAbs
-			ss = s
+			minDiff, ss = diffAbs, s
 		}
 	}
 	ok = ss != nil

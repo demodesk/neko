@@ -19,8 +19,8 @@ import (
 var moveSinkListenerMu = sync.Mutex{}
 
 type StreamSinkManagerCtx struct {
-	id      string
-	bitrate int // estimation of the actual bitrate
+	id         string
+	getBitrate func() (int, error)
 
 	logger zerolog.Logger
 	mu     sync.Mutex
@@ -40,15 +40,15 @@ type StreamSinkManagerCtx struct {
 	pipelinesActive  prometheus.Gauge
 }
 
-func streamSinkNew(codec codec.RTPCodec, pipelineFn func() (string, error), id string, bitrate int) *StreamSinkManagerCtx {
+func streamSinkNew(codec codec.RTPCodec, pipelineFn func() (string, error), id string, getBitrate func() (int, error)) *StreamSinkManagerCtx {
 	logger := log.With().
 		Str("module", "capture").
 		Str("submodule", "stream-sink").
 		Str("id", id).Logger()
 
 	manager := &StreamSinkManagerCtx{
-		id:      id,
-		bitrate: bitrate,
+		id:         id,
+		getBitrate: getBitrate,
 
 		logger:     logger,
 		codec:      codec,
@@ -113,8 +113,12 @@ func (manager *StreamSinkManagerCtx) ID() string {
 	return manager.id
 }
 
-func (manager *StreamSinkManagerCtx) Bitrate() int {
-	return manager.bitrate
+func (manager *StreamSinkManagerCtx) Bitrate() (int, error) {
+	if manager.getBitrate == nil {
+		return 0, nil
+	}
+	// recalculate bitrate every time, take screen resolution (and fps) into account
+	return manager.getBitrate()
 }
 
 func (manager *StreamSinkManagerCtx) Codec() codec.RTPCodec {

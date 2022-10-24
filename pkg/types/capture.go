@@ -71,7 +71,7 @@ type CaptureManager interface {
 	Start()
 	Shutdown() error
 
-	TargetBitrateFromVideoID(videoID string) (int, error)
+	GetBitrateFromVideoID(videoID string) (int, error)
 
 	Broadcast() BroadcastManager
 	Screencast() ScreencastManager
@@ -86,6 +86,7 @@ type VideoConfig struct {
 	Width       string            `mapstructure:"width"`        // expression
 	Height      string            `mapstructure:"height"`       // expression
 	Fps         string            `mapstructure:"fps"`          // expression
+	Bitrate     int               `mapstructure:"bitrate"`      // pipeline  bitrate
 	GstPrefix   string            `mapstructure:"gst_prefix"`   // pipeline prefix, starts with !
 	GstEncoder  string            `mapstructure:"gst_encoder"`  // gst encoder name
 	GstParams   map[string]string `mapstructure:"gst_params"`   // map of expressions
@@ -177,28 +178,40 @@ func (config *VideoConfig) GetPipeline(screen ScreenSize) (string, error) {
 	}[:], " "), nil
 }
 
-func (config *VideoConfig) GetTargetBitrate(screen ScreenSize) (int, error) {
-	values := map[string]any{
-		"width":  screen.Width,
-		"height": screen.Height,
-	}
+func (config *VideoConfig) GetBitrateFn(getScreen func() *ScreenSize) func() (int, error) {
+	return func() (int, error) {
+		if config.Bitrate > 0 {
+			return config.Bitrate, nil
+		}
 
-	language := []gval.Language{
-		gval.Function("round", func(args ...any) (any, error) {
-			return (int)(math.Round(args[0].(float64))), nil
-		}),
-	}
+		screen := getScreen()
+		if screen == nil {
+			return 0, fmt.Errorf("screen is nil")
+		}
 
-	// TODO: This is only for vp8.
-	expr, ok := config.GstParams["target-bitrate"]
-	if !ok {
-		return 0, fmt.Errorf("target-bitrate not found")
-	}
+		values := map[string]any{
+			"width":  screen.Width,
+			"height": screen.Height,
+			"fps":    screen.Rate,
+		}
 
-	targetBitrate, err := gval.Evaluate(expr, values, language...)
-	if err != nil {
-		return 0, err
-	}
+		language := []gval.Language{
+			gval.Function("round", func(args ...any) (any, error) {
+				return (int)(math.Round(args[0].(float64))), nil
+			}),
+		}
 
-	return targetBitrate.(int), nil
+		// TODO: This is only for vp8.
+		expr, ok := config.GstParams["target-bitrate"]
+		if !ok {
+			return 0, fmt.Errorf("target-bitrate not found")
+		}
+
+		targetBitrate, err := gval.Evaluate(expr, values, language...)
+		if err != nil {
+			return 0, err
+		}
+
+		return targetBitrate.(int), nil
+	}
 }
