@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/demodesk/neko/internal/capture/buckets"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
@@ -22,7 +23,7 @@ type CaptureManagerCtx struct {
 	broadcast  *BroacastManagerCtx
 	screencast *ScreencastManagerCtx
 	audio      *StreamSinkManagerCtx
-	video      *BucketsManagerCtx
+	video      types.BucketsManager
 
 	// sources
 	webcam     *StreamSrcManagerCtx
@@ -32,7 +33,7 @@ type CaptureManagerCtx struct {
 func New(desktop types.DesktopManager, config *config.Capture) *CaptureManagerCtx {
 	logger := log.With().Str("module", "capture").Logger()
 
-	videos := map[string]*StreamSinkManagerCtx{}
+	videos := map[string]types.StreamSinkManager{}
 	for video_id, cnf := range config.VideoPipelines {
 		pipelineConf := cnf
 
@@ -139,7 +140,7 @@ func New(desktop types.DesktopManager, config *config.Capture) *CaptureManagerCt
 					"! appsink name=appsink", config.AudioDevice, config.AudioCodec.Pipeline,
 			), nil
 		}, "audio", nil),
-		video: bucketsNew(config.VideoCodec, videos, config.VideoIDs),
+		video: buckets.BucketsNew(config.VideoCodec, videos, config.VideoIDs),
 
 		// sources
 		webcam: streamSrcNew(config.WebcamEnabled, map[string]string{
@@ -200,7 +201,7 @@ func (manager *CaptureManagerCtx) Start() {
 	}
 
 	manager.desktop.OnBeforeScreenSizeChange(func() {
-		manager.video.destroyAll()
+		manager.video.DestroyAll()
 
 		if manager.broadcast.Started() {
 			manager.broadcast.destroyPipeline()
@@ -212,7 +213,7 @@ func (manager *CaptureManagerCtx) Start() {
 	})
 
 	manager.desktop.OnAfterScreenSizeChange(func() {
-		err := manager.video.recreateAll()
+		err := manager.video.RecreateAll()
 		if err != nil {
 			manager.logger.Panic().Err(err).Msg("unable to recreate video pipelines")
 		}
@@ -240,7 +241,7 @@ func (manager *CaptureManagerCtx) Shutdown() error {
 	manager.screencast.shutdown()
 
 	manager.audio.shutdown()
-	manager.video.shutdown()
+	manager.video.Shutdown()
 
 	manager.webcam.shutdown()
 	manager.microphone.shutdown()

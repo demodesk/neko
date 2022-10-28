@@ -9,6 +9,8 @@ import (
 
 	"github.com/pion/ice/v2"
 	"github.com/pion/interceptor"
+	"github.com/pion/interceptor/pkg/cc"
+	"github.com/pion/interceptor/pkg/gcc"
 	"github.com/pion/rtcp"
 	"github.com/pion/webrtc/v3"
 	"github.com/rs/zerolog"
@@ -150,12 +152,12 @@ func (manager *WebRTCManagerCtx) ICEServers() []types.ICEServer {
 	return manager.config.ICEServers
 }
 
-func (manager *WebRTCManagerCtx) newPeerConnection(codecs []codec.RTPCodec, logger zerolog.Logger) (*webrtc.PeerConnection, error) {
+func (manager *WebRTCManagerCtx) newPeerConnection(codecs []codec.RTPCodec, logger zerolog.Logger) (*webrtc.PeerConnection, cc.BandwidthEstimator, error) {
 	// create media engine
 	engine := &webrtc.MediaEngine{}
 	for _, codec := range codecs {
 		if err := codec.Register(engine); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
@@ -199,8 +201,26 @@ func (manager *WebRTCManagerCtx) newPeerConnection(codecs []codec.RTPCodec, logg
 
 	// create interceptor registry
 	registry := &interceptor.Registry{}
+
+	congestionController, err := cc.NewInterceptor(func() (cc.BandwidthEstimator, error) {
+		return gcc.NewSendSideBWE(gcc.SendSideBWEInitialBitrate(1000000))
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	estimatorChan := make(chan cc.BandwidthEstimator, 1)
+	congestionController.OnNewPeerConnection(func(id string, estimator cc.BandwidthEstimator) {
+		estimatorChan <- estimator
+	})
+
+	registry.Add(congestionController)
+	if err = webrtc.ConfigureTWCCHeaderExtensionSender(engine, registry); err != nil {
+		return nil, nil, err
+	}
+
 	if err := webrtc.RegisterDefaultInterceptors(engine, registry); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// create new API
@@ -211,10 +231,12 @@ func (manager *WebRTCManagerCtx) newPeerConnection(codecs []codec.RTPCodec, logg
 	)
 
 	// create new peer connection
-	return api.NewPeerConnection(manager.webrtcConfiguration)
+	configuration := manager.webrtcConfiguration
+	connection, err := api.NewPeerConnection(configuration)
+	return connection, <-estimatorChan, err
 }
 
-func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int) (*webrtc.SessionDescription, error) {
+func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.SessionDescription, error) {
 	id := atomic.AddInt32(&manager.peerId, 1)
 	manager.metrics.NewConnection(session)
 
@@ -230,7 +252,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int) 
 	video := manager.capture.Video()
 	videoCodec := video.Codec()
 
-	connection, err := manager.newPeerConnection([]codec.RTPCodec{
+	connection, estimator, err := manager.newPeerConnection([]codec.RTPCodec{
 		audioCodec,
 		videoCodec,
 	}, logger)
@@ -262,7 +284,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int) 
 	}
 
 	// set stream for audio track
-	err = audioTrack.SetStream(audio)
+	_, err = audioTrack.SetStream(audio)
 	if err != nil {
 		return nil, err
 	}
@@ -275,18 +297,51 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int) 
 	}
 
 	// let video stream bucket manager handle stream subscriptions
-	err = video.SetReceiver(videoTrack)
-	if err != nil {
-		return nil, err
+	video.SetReceiver(videoTrack)
+
+	changeVideo := func(peerBitrate int) {
+		ok, err := videoTrack.SetBitrate(peerBitrate)
+		if err != nil {
+			logger.Error().Err(err).Int("peerBitrate", peerBitrate).Msg("unable to set video bitrate")
+			return
+		}
+
+		if !ok {
+			return
+		}
+
+		videoID := videoTrack.stream.ID()
+		manager.metrics.SetVideoID(session, videoID)
+
+		bitrate, err := videoTrack.stream.Bitrate()
+		if err != nil {
+			logger.Error().Err(err).Msg("unable to get video bitrate")
+		}
+
+		manager.logger.Debug().
+			Int("peer-bitrate", peerBitrate).
+			Int("video-bitrate", bitrate).
+			Str("video_id", videoID).
+			Msg("peer bitrate triggered video stream change")
+
+		session.Send(
+			event.SIGNAL_VIDEO,
+			message.SignalVideo{
+				Video:   videoID,
+				Bitrate: bitrate,
+			})
 	}
+
+	// get video bitrate from estimator
+	bitrate := estimator.GetTargetBitrate()
+
+	manager.logger.Info().Int("target-bitrate", bitrate).Msg("estimated peer bitrate")
 
 	// set initial video bitrate
-	if err = videoTrack.SetBitrate(bitrate); err != nil {
-		return nil, err
-	}
+	changeVideo(bitrate)
 
-	videoID := videoTrack.stream.ID()
-	manager.metrics.SetVideoID(session, videoID)
+	// listen for bitrate changes
+	estimator.OnTargetBitrateChange(changeVideo)
 
 	// data channel
 
@@ -299,15 +354,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int) 
 		logger:      logger,
 		connection:  connection,
 		dataChannel: dataChannel,
-		changeVideo: func(bitrate int) error {
-			if err := videoTrack.SetBitrate(bitrate); err != nil {
-				return err
-			}
-
-			videoID := videoTrack.stream.ID()
-			manager.metrics.SetVideoID(session, videoID)
-			return nil
-		},
+		changeVideo: changeVideo,
 		// TODO: Refactor.
 		videoId: func() string {
 			return videoTrack.stream.ID()

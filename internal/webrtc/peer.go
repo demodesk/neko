@@ -17,7 +17,7 @@ type WebRTCPeerCtx struct {
 	logger      zerolog.Logger
 	connection  *webrtc.PeerConnection
 	dataChannel *webrtc.DataChannel
-	changeVideo func(bitrate int) error
+	changeVideo func(bitrate int)
 	videoId     func() string
 	setPaused   func(isPaused bool)
 	iceTrickle  bool
@@ -124,7 +124,8 @@ func (peer *WebRTCPeerCtx) SetVideoBitrate(bitrate int) error {
 	}
 
 	peer.logger.Info().Int("bitrate", bitrate).Msg("change video bitrate")
-	return peer.changeVideo(bitrate)
+	peer.changeVideo(bitrate)
+	return nil
 }
 
 // TODO: Refactor.

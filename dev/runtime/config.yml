@@ -1,58 +1,76 @@
 capture:
   video:
     codec: vp8
-    ids: [ hq, lq ]
+    ids: [ hd, hq, mq, lq ]
     pipelines:
+      hd:
+        fps: 25
+       # bitrate: 3110400
+        gst_encoder: vp8enc
+        gst_params:
+          end-usage: cbr
+          target-bitrate: round((width * height * 3) / 2)
+          cpu-used: 4
+          threads: 4
+          deadline: 1
+          undershoot: 95
+          keyframe-max-dist: 25
+          min-quantizer: 3
+          max-quantizer: 32
+          buffer-initial-size: round(4 * ((width * height * 3) / 2000))
+          buffer-optimal-size: round(5 * ((width * height * 3) / 2000))
+          buffer-size: round(6 * ((width * height * 3) / 2000))
       hq:
-        fps: 25
+        fps: 15
+       # bitrate: 1555200
         gst_encoder: vp8enc
         gst_params:
-          target-bitrate: round(3072 * 650)
-          cpu-used: 4
           end-usage: cbr
+          target-bitrate: round((width * height * 3) / 4)
+          cpu-used: 4
           threads: 4
           deadline: 1
           undershoot: 95
-          buffer-size: (3072 * 4)
-          buffer-initial-size: (3072 * 2)
-          buffer-optimal-size: (3072 * 3)
           keyframe-max-dist: 25
-          min-quantizer: 4
-          max-quantizer: 20
+          min-quantizer: 3
+          max-quantizer: 32
+          buffer-initial-size: round(4 * ((width * height * 3) / 4000))
+          buffer-optimal-size: round(5 * ((width * height * 3) / 4000))
+          buffer-size: round(6 * ((width * height * 3) / 4000))
+      mq:
+        fps: 10
+       # bitrate: 1036800
+        gst_encoder: vp8enc
+        gst_params:
+          end-usage: cbr
+          target-bitrate: round((width * height) / 2)
+          cpu-used: 4
+          threads: 4
+          deadline: 1
+          undershoot: 95
+          keyframe-max-dist: 25
+          min-quantizer: 3
+          max-quantizer: 32
+          buffer-initial-size: round(4 * ((width * height) / 2000))
+          buffer-optimal-size: round(5 * ((width * height) / 2000))
+          buffer-size: round(6 * ((width * height) / 2000))
       lq:
-        fps: 25
+        fps: 5
+       # bitrate: 777600
         gst_encoder: vp8enc
         gst_params:
-          target-bitrate: round(1024 * 650)
-          cpu-used: 4
           end-usage: cbr
+          target-bitrate: round((width * height * 3) / 8)
+          cpu-used: 4
           threads: 4
           deadline: 1
           undershoot: 95
-          buffer-size: (1024 * 4)
-          buffer-initial-size: (1024 * 2)
-          buffer-optimal-size: (1024 * 3)
           keyframe-max-dist: 25
-          min-quantizer: 4
-          max-quantizer: 20
-  # video:
-  #   codec: h264
-  #   ids: [ main ]
-  #   pipelines:
-  #     main:
-  #       width: (width / 3) * 2
-  #       height: (height / 3) * 2
-  #       fps: 20
-  #       gst_prefix: "!  video/x-raw,format=I420"
-  #       gst_encoder: "x264enc"
-  #       gst_params:
-  #         threads: 4
-  #         bitrate: 4096
-  #         key-int-max: 15
-  #         byte-stream: true
-  #         tune: zerolatency
-  #         speed-preset: veryfast 
-  #       gst_suffix: "! video/x-h264,stream-format=byte-stream"
+          min-quantizer: 3
+          max-quantizer: 32
+          buffer-initial-size: round(4 * ((width * height * 3) / 8000))
+          buffer-optimal-size: round(5 * ((width * height * 3) / 8000))
+          buffer-size: round(6 * ((width * height * 3) / 8000))
   screencast:
     enabled: true
 

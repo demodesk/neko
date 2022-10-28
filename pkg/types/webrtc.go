@@ -40,6 +40,6 @@ type WebRTCManager interface {
 
 	ICEServers() []ICEServer
 
-	CreatePeer(session Session, bitrate int) (*webrtc.SessionDescription, error)
+	CreatePeer(session Session) (*webrtc.SessionDescription, error)
 	SetCursorPosition(x, y int)
 }

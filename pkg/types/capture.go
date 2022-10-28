@@ -20,16 +20,19 @@ var (
 type Sample media.Sample
 
 type Receiver interface {
-	SetStream(stream StreamSinkManager) error
+	SetStream(stream StreamSinkManager) (bool, error)
 	RemoveStream()
-	OnBitrateChange(f func(int) error)
+	OnBitrateChange(f func(int) (bool, error))
 }
 
 type BucketsManager interface {
 	IDs() []string
 	Codec() codec.RTPCodec
-	SetReceiver(receiver Receiver) error
+	SetReceiver(receiver Receiver)
 	RemoveReceiver(receiver Receiver) error
+	DestroyAll()
+	RecreateAll() error
+	Shutdown()
 }
 
 type BroadcastManager interface {
@@ -48,13 +51,21 @@ type ScreencastManager interface {
 type StreamSinkManager interface {
 	ID() string
 	Codec() codec.RTPCodec
+	Bitrate() (int, error)
 
 	AddListener(listener *func(sample Sample)) error
 	RemoveListener(listener *func(sample Sample)) error
+	SetListener(listener *func(sample Sample))
+	UnsetListener(listener *func(sample Sample))
 	MoveListenerTo(listener *func(sample Sample), targetStream StreamSinkManager) error
+	Start() error
+	CreatePipeline() error
+	DestroyPipeline()
 
 	ListenersCount() int
 	Started() bool
+	Lock()
+	Unlock()
 }
 
 type StreamSrcManager interface {
