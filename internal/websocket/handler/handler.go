@@ -71,6 +71,11 @@ func (h *MessageHandlerCtx) Message(session types.Session, data types.WebSocketM
 		err = utils.Unmarshal(payload, data.Payload, func() error {
 			return h.signalVideo(session, payload)
 		})
+	case event.SIGNAL_VIDEO_AUTO:
+		payload := &message.SignalVideoAuto{}
+		err = utils.Unmarshal(payload, data.Payload, func() error {
+			return h.signalVideoAuto(session, payload)
+		})
 
 	// Control Events
 	case event.CONTROL_RELEASE:

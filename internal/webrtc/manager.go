@@ -299,7 +299,9 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 	// let video stream bucket manager handle stream subscriptions
 	video.SetReceiver(videoTrack)
 
-	changeVideo := func(peerBitrate int) {
+	changeVideoFromBitrate := func(peerBitrate int) {
+		manager.metrics.SetReceiverEstimatedMaximumBitrate(session, float64(peerBitrate))
+
 		ok, err := videoTrack.SetBitrate(peerBitrate)
 		if err != nil {
 			logger.Error().Err(err).Int("peerBitrate", peerBitrate).Msg("unable to set video bitrate")
@@ -315,7 +317,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 
 		bitrate, err := videoTrack.stream.Bitrate()
 		if err != nil {
-			logger.Error().Err(err).Msg("unable to get video bitrate")
+			logger.Warn().Err(err).Msg("unable to get video bitrate")
 		}
 
 		manager.logger.Debug().
@@ -324,24 +326,51 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 			Str("video_id", videoID).
 			Msg("peer bitrate triggered video stream change")
 
-		session.Send(
+		go session.Send(
 			event.SIGNAL_VIDEO,
 			message.SignalVideo{
-				Video:   videoID,
-				Bitrate: bitrate,
+				Video: videoID,
+			})
+	}
+
+	changeVideoFromID := func(videoID string) {
+		ok, err := videoTrack.SetVideoID(videoID)
+		if err != nil {
+			logger.Error().Err(err).Str("videoID", videoID).Msg("unable to set video stream")
+			return
+		}
+
+		if !ok {
+			return
+		}
+
+		bitrate, err := videoTrack.stream.Bitrate()
+		if err != nil {
+			logger.Error().Err(err).Msg("unable to get video bitrate")
+		}
+
+		manager.logger.Debug().
+			Str("video_id", videoID).
+			Int("video-bitrate", bitrate).
+			Msg("peer video id triggered video stream change")
+
+		go session.Send(
+			event.SIGNAL_VIDEO,
+			message.SignalVideo{
+				Video: videoID,
 			})
 	}
 
 	// get video bitrate from estimator
 	bitrate := estimator.GetTargetBitrate()
 
-	manager.logger.Info().Int("target-bitrate", bitrate).Msg("estimated peer bitrate")
+	manager.logger.Info().Int("target-bitrate", bitrate).Msg("estimated initial peer bitrate")
 
 	// set initial video bitrate
-	changeVideo(bitrate)
+	changeVideoFromBitrate(bitrate)
 
 	// listen for bitrate changes
-	estimator.OnTargetBitrateChange(changeVideo)
+	estimator.OnTargetBitrateChange(changeVideoFromBitrate)
 
 	// data channel
 
@@ -351,10 +380,11 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 	}
 
 	peer := &WebRTCPeerCtx{
-		logger:      logger,
-		connection:  connection,
-		dataChannel: dataChannel,
-		changeVideo: changeVideo,
+		logger:                 logger,
+		connection:             connection,
+		dataChannel:            dataChannel,
+		changeVideoFromBitrate: changeVideoFromBitrate,
+		changeVideoFromID:      changeVideoFromID,
 		// TODO: Refactor.
 		videoId: func() string {
 			return videoTrack.stream.ID()
@@ -556,11 +586,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 	})
 
 	videoTrack.OnRTCP(func(p rtcp.Packet) {
-		switch rtcpPacket := p.(type) {
-		case *rtcp.ReceiverEstimatedMaximumBitrate: // TODO: Deprecated.
-			manager.metrics.SetReceiverEstimatedMaximumBitrate(session, rtcpPacket.Bitrate)
-
-		case *rtcp.ReceiverReport:
+		if rtcpPacket, ok := p.(*rtcp.ReceiverReport); ok {
 			l := len(rtcpPacket.Reports)
 			if l > 0 {
 				// use only last report

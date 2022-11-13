@@ -25,7 +25,8 @@ type WebRTCPeer interface {
 	SetCandidate(candidate webrtc.ICECandidateInit) error
 
 	SetVideoBitrate(bitrate int) error
-	GetVideoId() string
+	SetVideoID(videoID string) error
+	GetVideoID() string
 	SetPaused(isPaused bool) error
 
 	SendCursorPosition(x, y int) error

@@ -13,14 +13,15 @@ import (
 )
 
 type WebRTCPeerCtx struct {
-	mu          sync.Mutex
-	logger      zerolog.Logger
-	connection  *webrtc.PeerConnection
-	dataChannel *webrtc.DataChannel
-	changeVideo func(bitrate int)
-	videoId     func() string
-	setPaused   func(isPaused bool)
-	iceTrickle  bool
+	mu                     sync.Mutex
+	logger                 zerolog.Logger
+	connection             *webrtc.PeerConnection
+	dataChannel            *webrtc.DataChannel
+	changeVideoFromBitrate func(bitrate int)
+	changeVideoFromID      func(id string)
+	videoId                func() string
+	setPaused              func(isPaused bool)
+	iceTrickle             bool
 }
 
 func (peer *WebRTCPeerCtx) CreateOffer(ICERestart bool) (*webrtc.SessionDescription, error) {
@@ -124,12 +125,25 @@ func (peer *WebRTCPeerCtx) SetVideoBitrate(bitrate int) error {
 	}
 
 	peer.logger.Info().Int("bitrate", bitrate).Msg("change video bitrate")
-	peer.changeVideo(bitrate)
+	peer.changeVideoFromBitrate(bitrate)
+	return nil
+}
+
+func (peer *WebRTCPeerCtx) SetVideoID(videoID string) error {
+	peer.mu.Lock()
+	defer peer.mu.Unlock()
+
+	if peer.connection == nil {
+		return types.ErrWebRTCConnectionNotFound
+	}
+
+	peer.logger.Info().Str("video_id", videoID).Msg("change video id")
+	peer.changeVideoFromID(videoID)
 	return nil
 }
 
 // TODO: Refactor.
-func (peer *WebRTCPeerCtx) GetVideoId() string {
+func (peer *WebRTCPeerCtx) GetVideoID() string {
 	peer.mu.Lock()
 	defer peer.mu.Unlock()
 

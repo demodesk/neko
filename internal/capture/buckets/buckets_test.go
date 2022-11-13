@@ -25,7 +25,7 @@ func TestBucketsManagerCtx_FindNearestStream(t *testing.T) {
 		want   types.StreamSinkManager
 	}{
 		{
-			name: "FindNearestStream",
+			name: "findNearestStream",
 			fields: fields{
 				streams: map[string]types.StreamSinkManager{
 					"1": mockStreamSink{
@@ -63,7 +63,7 @@ func TestBucketsManagerCtx_FindNearestStream(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := BucketsNew(tt.fields.codec, tt.fields.streams, []string{})
 
-			if got := m.FindNearestStream(tt.args.peerBitrate); !reflect.DeepEqual(got, tt.want) {
+			if got := m.findNearestStream(tt.args.peerBitrate); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("findNearestStream() = %v, want %v", got, tt.want)
 			}
 		})

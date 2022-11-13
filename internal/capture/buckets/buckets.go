@@ -2,6 +2,9 @@ package buckets
 
 import (
 	"errors"
+	"sort"
+	"sync"
+	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -11,10 +14,13 @@ import (
 )
 
 type BucketsManagerCtx struct {
-	logger    zerolog.Logger
-	codec     codec.RTPCodec
-	streams   map[string]types.StreamSinkManager
-	streamIDs []string
+	logger         zerolog.Logger
+	codec          codec.RTPCodec
+	streams        map[string]types.StreamSinkManager
+	streamIDs      []string
+	streamAuto     bool
+	bitrateHistory *queue
+	sync.Mutex
 }
 
 func BucketsNew(codec codec.RTPCodec, streams map[string]types.StreamSinkManager, streamIDs []string) *BucketsManagerCtx {
@@ -24,10 +30,12 @@ func BucketsNew(codec codec.RTPCodec, streams map[string]types.StreamSinkManager
 		Logger()
 
 	return &BucketsManagerCtx{
-		logger:    logger,
-		codec:     codec,
-		streams:   streams,
-		streamIDs: streamIDs,
+		logger:         logger,
+		codec:          codec,
+		streams:        streams,
+		streamIDs:      streamIDs,
+		bitrateHistory: &queue{},
+		streamAuto:     true,
 	}
 }
 
@@ -66,13 +74,28 @@ func (m *BucketsManagerCtx) Codec() codec.RTPCodec {
 
 func (m *BucketsManagerCtx) SetReceiver(receiver types.Receiver) {
 	receiver.OnBitrateChange(func(bitrate int) (bool, error) {
-		stream := m.FindNearestStream(bitrate)
+		if !m.streamAuto {
+			return false, nil
+		}
+
+		m.bitrateHistory.push(elem{
+			bitrate: bitrate,
+			created: time.Now(),
+		})
+
+		stream := m.findNearestStream(m.bitrateHistory.avg())
 		ok, err := receiver.SetStream(stream)
 		return ok, err
 	})
+
+	receiver.OnVideoChange(func(videoID string) (bool, error) {
+		stream := m.streams[videoID]
+		m.logger.Info().Msgf("video change: %s", videoID)
+		return receiver.SetStream(stream)
+	})
 }
 
-func (m *BucketsManagerCtx) FindNearestStream(peerBitrate int) types.StreamSinkManager {
+func (m *BucketsManagerCtx) findNearestStream(peerBitrate int) types.StreamSinkManager {
 	type streamDiff struct {
 		id          string
 		bitrateDiff int
@@ -82,14 +105,16 @@ func (m *BucketsManagerCtx) FindNearestStream(peerBitrate int) types.StreamSinkM
 		switch {
 		case a < 0 && b < 0:
 			return a > b
-		case a > 0 && b > 0:
-			return a < b
-		default:
-			return a > b
+		case a >= 0:
+			if b >= 0 {
+				return a <= b
+			}
+			return true
 		}
+		return false
 	}
 
-	var lowestDiff *streamDiff
+	var diffs []streamDiff
 
 	for _, stream := range m.streams {
 		streamBitrate, err := stream.Bitrate()
@@ -99,21 +124,35 @@ func (m *BucketsManagerCtx) FindNearestStream(peerBitrate int) types.StreamSinkM
 
 		currentDiff := peerBitrate - streamBitrate
 
-		if lowestDiff == nil {
-			lowestDiff = &streamDiff{stream.ID(), currentDiff}
-			continue
-		}
-
-		if sortDiff(currentDiff, lowestDiff.bitrateDiff) {
-			lowestDiff = &streamDiff{stream.ID(), currentDiff}
-		}
+		diffs = append(diffs, streamDiff{
+			id:          stream.ID(),
+			bitrateDiff: currentDiff,
+		})
 	}
 
-	return m.streams[lowestDiff.id]
+	sort.Slice(diffs, func(i, j int) bool {
+		return sortDiff(diffs[i].bitrateDiff, diffs[j].bitrateDiff)
+	})
+
+	bestDiff := diffs[0]
+
+	return m.streams[bestDiff.id]
 }
 
 func (m *BucketsManagerCtx) RemoveReceiver(receiver types.Receiver) error {
 	receiver.OnBitrateChange(nil)
 	receiver.RemoveStream()
 	return nil
+}
+
+func (m *BucketsManagerCtx) SetVideoAuto(auto bool) {
+	m.Lock()
+	defer m.Unlock()
+	m.streamAuto = auto
+}
+
+func (m *BucketsManagerCtx) VideoAuto() bool {
+	m.Lock()
+	defer m.Unlock()
+	return m.streamAuto
 }
