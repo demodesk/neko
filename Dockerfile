@@ -75,9 +75,7 @@ RUN set -eux; \
     chown $USERNAME /tmp/.X11-unix/; \
     #
     # make directories for neko
-    mkdir -p /etc/neko /var/www /var/log/neko; \
-    chmod 1777 /var/log/neko; \
-    chown $USERNAME /var/log/neko/; \
+    mkdir -p /etc/neko /var/www; \
     chown -R $USERNAME:$USERNAME /home/$USERNAME; \
     #
     # install fonts
@@ -134,4 +132,4 @@ HEALTHCHECK --interval=10s --timeout=5s --retries=8 \
 
 #
 # run neko
-CMD ["/usr/bin/supervisord", "-c", "/etc/neko/supervisord.conf"]
+CMD ["/usr/bin/supervisord", "-s", "-c", "/etc/neko/supervisord.conf"]
