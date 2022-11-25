@@ -58,17 +58,13 @@ type StreamSinkManager interface {
 
 	AddListener(listener *func(sample Sample)) error
 	RemoveListener(listener *func(sample Sample)) error
-	SetListener(listener *func(sample Sample))
-	UnsetListener(listener *func(sample Sample))
 	MoveListenerTo(listener *func(sample Sample), targetStream StreamSinkManager) error
-	Start() error
-	CreatePipeline() error
-	DestroyPipeline()
 
 	ListenersCount() int
 	Started() bool
-	Lock()
-	Unlock()
+
+	CreatePipeline() error
+	DestroyPipeline()
 }
 
 type StreamSrcManager interface {

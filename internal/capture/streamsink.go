@@ -125,7 +125,7 @@ func (manager *StreamSinkManagerCtx) Codec() codec.RTPCodec {
 	return manager.codec
 }
 
-func (manager *StreamSinkManagerCtx) Start() error {
+func (manager *StreamSinkManagerCtx) start() error {
 	if len(manager.listeners) == 0 {
 		err := manager.CreatePipeline()
 		if err != nil && !errors.Is(err, types.ErrCapturePipelineAlreadyExists) {
@@ -145,11 +145,7 @@ func (manager *StreamSinkManagerCtx) stop() {
 	}
 }
 
-func (manager *StreamSinkManagerCtx) SetListener(listener *func(sample types.Sample)) {
-	manager.setListener(listener)
-}
-
-func (manager *StreamSinkManagerCtx) setListener(listener *func(sample types.Sample)) {
+func (manager *StreamSinkManagerCtx) addListener(listener *func(sample types.Sample)) {
 	ptr := reflect.ValueOf(listener).Pointer()
 
 	manager.listenersMu.Lock()
@@ -160,11 +156,7 @@ func (manager *StreamSinkManagerCtx) setListener(listener *func(sample types.Sam
 	manager.currentListeners.Set(float64(manager.ListenersCount()))
 }
 
-func (manager *StreamSinkManagerCtx) UnsetListener(listener *func(sample types.Sample)) {
-	manager.unsetListener(listener)
-}
-
-func (manager *StreamSinkManagerCtx) unsetListener(listener *func(sample types.Sample)) {
+func (manager *StreamSinkManagerCtx) removeListener(listener *func(sample types.Sample)) {
 	ptr := reflect.ValueOf(listener).Pointer()
 
 	manager.listenersMu.Lock()
@@ -176,34 +168,34 @@ func (manager *StreamSinkManagerCtx) unsetListener(listener *func(sample types.S
 }
 
 func (manager *StreamSinkManagerCtx) AddListener(listener *func(sample types.Sample)) error {
-	manager.Lock()
-	defer manager.Unlock()
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
 
 	if listener == nil {
 		return errors.New("listener cannot be nil")
 	}
 
 	// start if stopped
-	if err := manager.Start(); err != nil {
+	if err := manager.start(); err != nil {
 		return err
 	}
 
 	// add listener
-	manager.setListener(listener)
+	manager.addListener(listener)
 
 	return nil
 }
 
 func (manager *StreamSinkManagerCtx) RemoveListener(listener *func(sample types.Sample)) error {
-	manager.Lock()
-	defer manager.Unlock()
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
 
 	if listener == nil {
 		return errors.New("listener cannot be nil")
 	}
 
 	// remove listener
-	manager.unsetListener(listener)
+	manager.removeListener(listener)
 
 	// stop if started
 	manager.stop()
@@ -213,9 +205,14 @@ func (manager *StreamSinkManagerCtx) RemoveListener(listener *func(sample types.
 
 // moving listeners between streams ensures, that target pipeline is running
 // before listener is added, and stops source pipeline if there are 0 listeners
-func (manager *StreamSinkManagerCtx) MoveListenerTo(listener *func(sample types.Sample), targetStream types.StreamSinkManager) error {
+func (manager *StreamSinkManagerCtx) MoveListenerTo(listener *func(sample types.Sample), stream types.StreamSinkManager) error {
 	if listener == nil {
 		return errors.New("listener cannot be nil")
+	}
+
+	targetStream, ok := stream.(*StreamSinkManagerCtx)
+	if !ok {
+		return errors.New("target stream manager does not support moving listeners")
 	}
 
 	// we need to acquire both mutextes, from source stream and from target stream
@@ -224,28 +221,26 @@ func (manager *StreamSinkManagerCtx) MoveListenerTo(listener *func(sample types.
 
 	// lock global mutex
 	moveSinkListenerMu.Lock()
-	// lock source stream
-	manager.Lock()
-	// lock target stream
-	targetStream.Lock()
 
-	defer func() {
-		// unlock target stream
-		targetStream.Unlock()
-		// unlock source stream
-		manager.Unlock()
-		// unlock global mutex
-		moveSinkListenerMu.Unlock()
-	}()
+	// lock source stream
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+
+	// lock target stream
+	targetStream.mu.Lock()
+	defer targetStream.mu.Unlock()
+
+	// unlock global mutex
+	moveSinkListenerMu.Unlock()
 
 	// start if stopped
-	if err := targetStream.Start(); err != nil {
+	if err := targetStream.start(); err != nil {
 		return err
 	}
 
 	// swap listeners
-	manager.unsetListener(listener)
-	targetStream.SetListener(listener)
+	manager.removeListener(listener)
+	targetStream.addListener(listener)
 
 	// stop if started
 	manager.stop()
@@ -331,12 +326,4 @@ func (manager *StreamSinkManagerCtx) DestroyPipeline() {
 	manager.pipeline = nil
 
 	manager.pipelinesActive.Set(0)
-}
-
-func (manager *StreamSinkManagerCtx) Lock() {
-	manager.mu.Lock()
-}
-
-func (manager *StreamSinkManagerCtx) Unlock() {
-	manager.mu.Unlock()
 }
