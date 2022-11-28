@@ -10,15 +10,14 @@ const (
 )
 
 const (
-	SIGNAL_REQUEST    = "signal/request"
-	SIGNAL_RESTART    = "signal/restart"
-	SIGNAL_OFFER      = "signal/offer"
-	SIGNAL_ANSWER     = "signal/answer"
-	SIGNAL_PROVIDE    = "signal/provide"
-	SIGNAL_CANDIDATE  = "signal/candidate"
-	SIGNAL_VIDEO      = "signal/video"
-	SIGNAL_VIDEO_AUTO = "signal/video_auto"
-	SIGNAL_CLOSE      = "signal/close"
+	SIGNAL_REQUEST   = "signal/request"
+	SIGNAL_RESTART   = "signal/restart"
+	SIGNAL_OFFER     = "signal/offer"
+	SIGNAL_ANSWER    = "signal/answer"
+	SIGNAL_PROVIDE   = "signal/provide"
+	SIGNAL_CANDIDATE = "signal/candidate"
+	SIGNAL_VIDEO     = "signal/video"
+	SIGNAL_CLOSE     = "signal/close"
 )
 
 const (

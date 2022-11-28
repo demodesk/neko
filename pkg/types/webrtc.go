@@ -24,8 +24,8 @@ type WebRTCPeer interface {
 	SetAnswer(sdp string) error
 	SetCandidate(candidate webrtc.ICECandidateInit) error
 
-	SetVideoBitrate(bitrate int) error
-	SetVideoID(videoID string) error
+	SetVideoBitrate(bitrate int) (string, int, error)
+	SetVideoID(videoID string) (bitrate int, err error)
 	GetVideoID() string
 	SetPaused(isPaused bool) error
 
@@ -43,4 +43,6 @@ type WebRTCManager interface {
 
 	CreatePeer(session Session) (*webrtc.SessionDescription, error)
 	SetCursorPosition(x, y int)
+	VideoAuto() bool
+	SetVideoAuto(videoAuto bool)
 }

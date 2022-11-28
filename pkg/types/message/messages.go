@@ -62,11 +62,9 @@ type SignalDescription struct {
 }
 
 type SignalVideo struct {
-	Video string `json:"video"`
-}
-
-type SignalVideoAuto struct {
-	Auto bool `json:"video_auto"`
+	Video     string `json:"video"`
+	Bitrate   int    `json:"bitrate"`
+	VideoAuto bool   `json:"video_auto"`
 }
 
 /////////////////////////////

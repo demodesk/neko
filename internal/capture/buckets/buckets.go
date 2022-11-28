@@ -18,7 +18,6 @@ type BucketsManagerCtx struct {
 	codec          codec.RTPCodec
 	streams        map[string]types.StreamSinkManager
 	streamIDs      []string
-	streamAuto     bool
 	bitrateHistory *queue
 	sync.Mutex
 }
@@ -35,7 +34,6 @@ func BucketsNew(codec codec.RTPCodec, streams map[string]types.StreamSinkManager
 		streams:        streams,
 		streamIDs:      streamIDs,
 		bitrateHistory: &queue{},
-		streamAuto:     true,
 	}
 }
 
@@ -73,19 +71,16 @@ func (m *BucketsManagerCtx) Codec() codec.RTPCodec {
 }
 
 func (m *BucketsManagerCtx) SetReceiver(receiver types.Receiver) {
-	receiver.OnBitrateChange(func(bitrate int) (bool, error) {
-		if !m.streamAuto {
-			return false, nil
+	receiver.OnBitrateChange(func(bitrate int, keepOriginal bool) (bool, error) {
+		if !keepOriginal {
+			m.bitrateHistory.push(elem{
+				bitrate: bitrate,
+				created: time.Now(),
+			})
+			bitrate = m.bitrateHistory.avg()
 		}
-
-		m.bitrateHistory.push(elem{
-			bitrate: bitrate,
-			created: time.Now(),
-		})
-
-		stream := m.findNearestStream(m.bitrateHistory.avg())
-		ok, err := receiver.SetStream(stream)
-		return ok, err
+		stream := m.findNearestStream(bitrate)
+		return receiver.SetStream(stream)
 	})
 
 	receiver.OnVideoChange(func(videoID string) (bool, error) {
@@ -143,16 +138,4 @@ func (m *BucketsManagerCtx) RemoveReceiver(receiver types.Receiver) error {
 	receiver.OnBitrateChange(nil)
 	receiver.RemoveStream()
 	return nil
-}
-
-func (m *BucketsManagerCtx) SetVideoAuto(auto bool) {
-	m.Lock()
-	defer m.Unlock()
-	m.streamAuto = auto
-}
-
-func (m *BucketsManagerCtx) VideoAuto() bool {
-	m.Lock()
-	defer m.Unlock()
-	return m.streamAuto
 }

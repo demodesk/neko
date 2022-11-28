@@ -26,17 +26,6 @@ func (q *queue) push(v elem) {
 	q.q = append(q.q, v)
 }
 
-func (q *queue) popAsync() elem {
-	q.Lock()
-	defer q.Unlock()
-	if q.len() == 0 {
-		return elem{}
-	}
-	v := q.q[0]
-	q.q = q.q[1:]
-	return v
-}
-
 func (q *queue) len() int {
 	return len(q.q)
 }
