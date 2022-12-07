@@ -379,12 +379,15 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 	// set initial video bitrate
 	changeVideoFromBitrate(bitrate)
 
-	// listen for bitrate changes
-	estimator.OnTargetBitrateChange(func(bitrate int) {
-		if manager.VideoAuto() {
-			changeVideoFromBitrate(bitrate)
+	// use a ticker to get current client target bitrate
+	go func() {
+		for range time.Tick(250 * time.Millisecond) {
+			if manager.VideoAuto() {
+				targetBitrate := estimator.GetTargetBitrate()
+				changeVideoFromBitrate(targetBitrate)
+			}
 		}
-	})
+	}()
 
 	// data channel
 

@@ -2,6 +2,7 @@ package buckets
 
 import (
 	"errors"
+	"math"
 	"sort"
 	"sync"
 	"time"
@@ -73,11 +74,7 @@ func (m *BucketsManagerCtx) Codec() codec.RTPCodec {
 func (m *BucketsManagerCtx) SetReceiver(receiver types.Receiver) {
 	receiver.OnBitrateChange(func(bitrate int, keepOriginal bool) (bool, error) {
 		if !keepOriginal {
-			m.bitrateHistory.push(elem{
-				bitrate: bitrate,
-				created: time.Now(),
-			})
-			bitrate = m.bitrateHistory.avg()
+			bitrate = m.normaliseBitrate(bitrate)
 		}
 		stream := m.findNearestStream(bitrate)
 		return receiver.SetStream(stream)
@@ -88,6 +85,31 @@ func (m *BucketsManagerCtx) SetReceiver(receiver types.Receiver) {
 		m.logger.Info().Msgf("video change: %s", videoID)
 		return receiver.SetStream(stream)
 	})
+}
+
+func (m *BucketsManagerCtx) normaliseBitrate(currentBitrate int) int {
+	avgBitrate := float64(m.bitrateHistory.avg())
+	histLen := float64(m.bitrateHistory.len())
+
+	m.bitrateHistory.push(elem{
+		bitrate: currentBitrate,
+		created: time.Now(),
+	})
+
+	if avgBitrate == 0 || histLen == 0 || currentBitrate == 0 {
+		return currentBitrate
+	}
+
+	lastN := int(math.Floor(float64(currentBitrate) / avgBitrate * histLen))
+	if lastN > m.bitrateHistory.len() {
+		lastN = m.bitrateHistory.len()
+	}
+
+	if lastN == 0 {
+		return currentBitrate
+	}
+
+	return m.bitrateHistory.avgLastN(lastN)
 }
 
 func (m *BucketsManagerCtx) findNearestStream(peerBitrate int) types.StreamSinkManager {
