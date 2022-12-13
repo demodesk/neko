@@ -114,16 +114,14 @@ func (manager *WebRTCManagerCtx) Start() {
 
 	// add UDP Mux listener
 	if manager.config.UDPMux > 0 {
-		udpListener, err := net.ListenUDP("udp", &net.UDPAddr{
-			IP:   net.IP{0, 0, 0, 0},
-			Port: manager.config.UDPMux,
-		})
+		var err error
+		manager.udpMux, err = ice.NewMultiUDPMuxFromPort(manager.config.UDPMux,
+			ice.UDPMuxFromPortWithLogger(logger.NewLogger("ice-udp")),
+		)
 
 		if err != nil {
 			manager.logger.Panic().Err(err).Msg("unable to setup ice UDP mux")
 		}
-
-		manager.udpMux = webrtc.NewICEUDPMux(logger.NewLogger("ice-udp"), udpListener)
 	}
 
 	manager.logger.Info().
