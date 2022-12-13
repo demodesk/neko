@@ -109,7 +109,12 @@ func (manager *WebRTCManagerCtx) Start() {
 			manager.logger.Panic().Err(err).Msg("unable to setup ice TCP mux")
 		}
 
-		manager.tcpMux = webrtc.NewICETCPMux(logger.NewLogger("ice-tcp"), tcpListener, 32)
+		manager.tcpMux = ice.NewTCPMuxDefault(ice.TCPMuxParams{
+			Listener:        tcpListener,
+			Logger:          logger.NewLogger("ice-tcp"),
+			ReadBufferSize:  32,              // receiving channel size
+			WriteBufferSize: 4 * 1024 * 1024, // write buffer size, 4MB
+		})
 	}
 
 	// add UDP Mux listener
