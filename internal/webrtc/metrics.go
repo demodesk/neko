@@ -241,20 +241,20 @@ func (m *metricsCtx) NewConnection(session types.Session) {
 	met.connectionCount.Add(1)
 }
 
-func (m *metricsCtx) NewICECandidate(session types.Session, id string, proto string) {
+func (m *metricsCtx) NewICECandidate(session types.Session, candidate webrtc.ICECandidateStats) {
 	met := m.getBySession(session)
 
 	met.iceCandidatesMu.Lock()
 	defer met.iceCandidatesMu.Unlock()
 
-	if _, found := met.iceCandidates[id]; found {
+	if _, found := met.iceCandidates[candidate.ID]; found {
 		return
 	}
 
-	met.iceCandidates[id] = struct{}{}
-	if proto == "udp" {
+	met.iceCandidates[candidate.ID] = struct{}{}
+	if candidate.Protocol == "udp" {
 		met.iceCandidatesUdpCount.Add(1)
-	} else if proto == "tcp" {
+	} else if candidate.Protocol == "tcp" {
 		met.iceCandidatesTcpCount.Add(1)
 	}
 }
