@@ -20,6 +20,9 @@ type metrics struct {
 	iceCandidatesUdpCount prometheus.Counter
 	iceCandidatesTcpCount prometheus.Counter
 
+	iceCandidatesUsedUdp prometheus.Gauge
+	iceCandidatesUsedTcp prometheus.Gauge
+
 	videoIds   map[string]prometheus.Gauge
 	videoIdsMu *sync.Mutex
 
@@ -102,6 +105,27 @@ func (m *metricsCtx) getBySession(session types.Session) metrics {
 			Namespace: "neko",
 			Subsystem: "webrtc",
 			Help:      "Count of ICE candidates sent by a remote client.",
+			ConstLabels: map[string]string{
+				"session_id": session.ID(),
+				"protocol":   "tcp",
+			},
+		}),
+
+		iceCandidatesUsedUdp: promauto.NewGauge(prometheus.GaugeOpts{
+			Name:      "ice_candidates_used",
+			Namespace: "neko",
+			Subsystem: "webrtc",
+			Help:      "Used ICE candidates that are currently in use.",
+			ConstLabels: map[string]string{
+				"session_id": session.ID(),
+				"protocol":   "udp",
+			},
+		}),
+		iceCandidatesUsedTcp: promauto.NewGauge(prometheus.GaugeOpts{
+			Name:      "ice_candidates_used",
+			Namespace: "neko",
+			Subsystem: "webrtc",
+			Help:      "Used ICE candidates that are currently in use.",
 			ConstLabels: map[string]string{
 				"session_id": session.ID(),
 				"protocol":   "tcp",
@@ -203,6 +227,9 @@ func (m *metricsCtx) reset(met metrics) {
 	}
 	met.videoIdsMu.Unlock()
 
+	met.iceCandidatesUsedUdp.Set(float64(0))
+	met.iceCandidatesUsedTcp.Set(float64(0))
+
 	met.receiverEstimatedMaximumBitrate.Set(0)
 
 	met.receiverReportDelay.Set(0)
@@ -230,6 +257,22 @@ func (m *metricsCtx) NewICECandidate(session types.Session, id string, proto str
 	} else if proto == "tcp" {
 		met.iceCandidatesTcpCount.Add(1)
 	}
+}
+
+func (m *metricsCtx) SetICECandidatesUsed(session types.Session, candidates []webrtc.ICECandidateStats) {
+	met := m.getBySession(session)
+
+	udp, tcp := 0, 0
+	for _, candidate := range candidates {
+		if candidate.Protocol == "udp" {
+			udp++
+		} else if candidate.Protocol == "tcp" {
+			tcp++
+		}
+	}
+
+	met.iceCandidatesUsedUdp.Set(float64(udp))
+	met.iceCandidatesUsedTcp.Set(float64(tcp))
 }
 
 func (m *metricsCtx) SetState(session types.Session, state webrtc.PeerConnectionState) {
