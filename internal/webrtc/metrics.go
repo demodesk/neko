@@ -15,9 +15,10 @@ type metrics struct {
 	connectionStateCount prometheus.Counter
 	connectionCount      prometheus.Counter
 
-	iceCandidates      map[string]struct{}
-	iceCandidatesMu    *sync.Mutex
-	iceCandidatesCount prometheus.Counter
+	iceCandidates         map[string]struct{}
+	iceCandidatesMu       *sync.Mutex
+	iceCandidatesUdpCount prometheus.Counter
+	iceCandidatesTcpCount prometheus.Counter
 
 	videoIds   map[string]prometheus.Gauge
 	videoIdsMu *sync.Mutex
@@ -86,13 +87,24 @@ func (m *metricsCtx) getBySession(session types.Session) metrics {
 
 		iceCandidates:   map[string]struct{}{},
 		iceCandidatesMu: &sync.Mutex{},
-		iceCandidatesCount: promauto.NewCounter(prometheus.CounterOpts{
+		iceCandidatesUdpCount: promauto.NewCounter(prometheus.CounterOpts{
 			Name:      "ice_candidates_count",
 			Namespace: "neko",
 			Subsystem: "webrtc",
 			Help:      "Count of ICE candidates sent by a remote client.",
 			ConstLabels: map[string]string{
 				"session_id": session.ID(),
+				"protocol":   "udp",
+			},
+		}),
+		iceCandidatesTcpCount: promauto.NewCounter(prometheus.CounterOpts{
+			Name:      "ice_candidates_count",
+			Namespace: "neko",
+			Subsystem: "webrtc",
+			Help:      "Count of ICE candidates sent by a remote client.",
+			ConstLabels: map[string]string{
+				"session_id": session.ID(),
+				"protocol":   "tcp",
 			},
 		}),
 
@@ -202,7 +214,7 @@ func (m *metricsCtx) NewConnection(session types.Session) {
 	met.connectionCount.Add(1)
 }
 
-func (m *metricsCtx) NewICECandidate(session types.Session, id string) {
+func (m *metricsCtx) NewICECandidate(session types.Session, id string, proto string) {
 	met := m.getBySession(session)
 
 	met.iceCandidatesMu.Lock()
@@ -213,7 +225,11 @@ func (m *metricsCtx) NewICECandidate(session types.Session, id string) {
 	}
 
 	met.iceCandidates[id] = struct{}{}
-	met.iceCandidatesCount.Add(1)
+	if proto == "udp" {
+		met.iceCandidatesUdpCount.Add(1)
+	} else if proto == "tcp" {
+		met.iceCandidatesTcpCount.Add(1)
+	}
 }
 
 func (m *metricsCtx) SetState(session types.Session, state webrtc.PeerConnectionState) {

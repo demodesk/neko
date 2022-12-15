@@ -549,7 +549,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int) 
 				// only remote ice candidate stats
 				candidate, ok := entry.(webrtc.ICECandidateStats)
 				if ok && candidate.Type == webrtc.StatsTypeRemoteCandidate {
-					manager.metrics.NewICECandidate(session, candidate.ID)
+					manager.metrics.NewICECandidate(session, candidate.ID, candidate.Protocol)
 				}
 			}
 		}
