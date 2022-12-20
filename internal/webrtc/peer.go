@@ -17,7 +17,7 @@ type WebRTCPeerCtx struct {
 	logger                 zerolog.Logger
 	connection             *webrtc.PeerConnection
 	dataChannel            *webrtc.DataChannel
-	changeVideoFromBitrate func(bitrate int) (string, int)
+	changeVideoFromBitrate func(bitrate int)
 	changeVideoFromID      func(id string) int
 	videoId                func() string
 	setPaused              func(isPaused bool)
@@ -116,30 +116,28 @@ func (peer *WebRTCPeerCtx) SetCandidate(candidate webrtc.ICECandidateInit) error
 	return peer.connection.AddICECandidate(candidate)
 }
 
-func (peer *WebRTCPeerCtx) SetVideoBitrate(peerBitrate int) (video string, bitrate int, err error) {
+func (peer *WebRTCPeerCtx) SetVideoBitrate(peerBitrate int) error {
 	peer.mu.Lock()
 	defer peer.mu.Unlock()
 
 	if peer.connection == nil {
-		return "", 0, types.ErrWebRTCConnectionNotFound
+		return types.ErrWebRTCConnectionNotFound
 	}
 
-	video, bitrate = peer.changeVideoFromBitrate(peerBitrate)
-	peer.logger.Info().Str("video_id", video).Int("peerBitrate", peerBitrate).Int("bitrate", bitrate).Msg("change video bitrate")
-	return
+	peer.changeVideoFromBitrate(peerBitrate)
+	return nil
 }
 
-func (peer *WebRTCPeerCtx) SetVideoID(videoID string) (bitrate int, err error) {
+func (peer *WebRTCPeerCtx) SetVideoID(videoID string) error {
 	peer.mu.Lock()
 	defer peer.mu.Unlock()
 
 	if peer.connection == nil {
-		return 0, types.ErrWebRTCConnectionNotFound
+		return types.ErrWebRTCConnectionNotFound
 	}
 
-	bitrate = peer.changeVideoFromID(videoID)
-	peer.logger.Info().Str("video_id", videoID).Int("bitrate", bitrate).Msg("change video id")
-	return
+	peer.changeVideoFromID(videoID)
+	return nil
 }
 
 // TODO: Refactor.

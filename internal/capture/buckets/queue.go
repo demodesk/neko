@@ -61,6 +61,7 @@ func (q *queue) avgLastN(n int) int {
 	return sum / n
 }
 
+// in case avg doesn't work well
 func (q *queue) min() int {
 	q.Lock()
 	defer q.Unlock()
@@ -76,6 +77,7 @@ func (q *queue) min() int {
 	return min
 }
 
+// in case avg doesn't work well
 func (q *queue) max() int {
 	q.Lock()
 	defer q.Unlock()

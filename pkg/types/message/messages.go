@@ -50,6 +50,7 @@ type SignalProvide struct {
 	SDP        string            `json:"sdp"`
 	ICEServers []types.ICEServer `json:"iceservers"`
 	Video      string            `json:"video"` // TODO: Refactor.
+	Bitrate    int               `json:"bitrate"`
 	VideoAuto  bool              `json:"video_auto"`
 }
 

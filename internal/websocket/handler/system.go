@@ -50,7 +50,7 @@ func (h *MessageHandlerCtx) systemInit(session types.Session) error {
 			ScreencastEnabled: h.capture.Screencast().Enabled(),
 			WebRTC: message.SystemWebRTC{
 				Videos:    h.capture.Video().IDs(),
-				VideoAuto: true,
+				VideoAuto: h.capture.Video().VideoAuto(),
 			},
 		})
 

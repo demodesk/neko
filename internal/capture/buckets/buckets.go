@@ -19,6 +19,7 @@ type BucketsManagerCtx struct {
 	codec          codec.RTPCodec
 	streams        map[string]types.StreamSinkManager
 	streamIDs      []string
+	videoAuto      bool
 	bitrateHistory *queue
 	sync.Mutex
 }
@@ -38,20 +39,21 @@ func BucketsNew(codec codec.RTPCodec, streams map[string]types.StreamSinkManager
 	}
 }
 
-func (m *BucketsManagerCtx) Shutdown() {
-	m.logger.Info().Msgf("shutdown")
+func (manager *BucketsManagerCtx) Shutdown() {
+	manager.DestroyAll()
+	manager.logger.Info().Msgf("shutdown")
 }
 
-func (m *BucketsManagerCtx) DestroyAll() {
-	for _, stream := range m.streams {
+func (manager *BucketsManagerCtx) DestroyAll() {
+	for _, stream := range manager.streams {
 		if stream.Started() {
 			stream.DestroyPipeline()
 		}
 	}
 }
 
-func (m *BucketsManagerCtx) RecreateAll() error {
-	for _, stream := range m.streams {
+func (manager *BucketsManagerCtx) RecreateAll() error {
+	for _, stream := range manager.streams {
 		if stream.Started() {
 			err := stream.CreatePipeline()
 			if err != nil && !errors.Is(err, types.ErrCapturePipelineAlreadyExists) {
@@ -63,35 +65,36 @@ func (m *BucketsManagerCtx) RecreateAll() error {
 	return nil
 }
 
-func (m *BucketsManagerCtx) IDs() []string {
-	return m.streamIDs
+func (manager *BucketsManagerCtx) IDs() []string {
+	return manager.streamIDs
 }
 
-func (m *BucketsManagerCtx) Codec() codec.RTPCodec {
-	return m.codec
+func (manager *BucketsManagerCtx) Codec() codec.RTPCodec {
+	return manager.codec
 }
 
-func (m *BucketsManagerCtx) SetReceiver(receiver types.Receiver) {
-	receiver.OnBitrateChange(func(bitrate int, keepOriginal bool) (bool, error) {
-		if !keepOriginal {
-			bitrate = m.normaliseBitrate(bitrate)
+func (manager *BucketsManagerCtx) SetReceiver(receiver types.Receiver) {
+	receiver.OnBitrateChange(func(bitrate int) (bool, error) {
+		if manager.videoAuto {
+			bitrate = manager.normaliseBitrate(bitrate)
 		}
-		stream := m.findNearestStream(bitrate)
+		stream := manager.findNearestStream(bitrate)
+		manager.logger.Info().Str("video_id", stream.ID()).Int("peerBitrate", bitrate).Int("bitrate", bitrate).Msg("change video bitrate")
 		return receiver.SetStream(stream)
 	})
 
 	receiver.OnVideoChange(func(videoID string) (bool, error) {
-		stream := m.streams[videoID]
-		m.logger.Info().Msgf("video change: %s", videoID)
+		stream := manager.streams[videoID]
+		manager.logger.Info().Msgf("video change: %s", videoID)
 		return receiver.SetStream(stream)
 	})
 }
 
-func (m *BucketsManagerCtx) normaliseBitrate(currentBitrate int) int {
-	avgBitrate := float64(m.bitrateHistory.avg())
-	histLen := float64(m.bitrateHistory.len())
+func (manager *BucketsManagerCtx) normaliseBitrate(currentBitrate int) int {
+	avgBitrate := float64(manager.bitrateHistory.avg())
+	histLen := float64(manager.bitrateHistory.len())
 
-	m.bitrateHistory.push(elem{
+	manager.bitrateHistory.push(elem{
 		bitrate: currentBitrate,
 		created: time.Now(),
 	})
@@ -101,18 +104,18 @@ func (m *BucketsManagerCtx) normaliseBitrate(currentBitrate int) int {
 	}
 
 	lastN := int(math.Floor(float64(currentBitrate) / avgBitrate * histLen))
-	if lastN > m.bitrateHistory.len() {
-		lastN = m.bitrateHistory.len()
+	if lastN > manager.bitrateHistory.len() {
+		lastN = manager.bitrateHistory.len()
 	}
 
 	if lastN == 0 {
 		return currentBitrate
 	}
 
-	return m.bitrateHistory.avgLastN(lastN)
+	return manager.bitrateHistory.avgLastN(lastN)
 }
 
-func (m *BucketsManagerCtx) findNearestStream(peerBitrate int) types.StreamSinkManager {
+func (manager *BucketsManagerCtx) findNearestStream(peerBitrate int) types.StreamSinkManager {
 	type streamDiff struct {
 		id          string
 		bitrateDiff int
@@ -133,17 +136,10 @@ func (m *BucketsManagerCtx) findNearestStream(peerBitrate int) types.StreamSinkM
 
 	var diffs []streamDiff
 
-	for _, stream := range m.streams {
-		streamBitrate, err := stream.Bitrate()
-		if err != nil {
-			m.logger.Fatal().Err(err).Str("id", stream.ID()).Msg("failed to get stream bitrate")
-		}
-
-		currentDiff := peerBitrate - streamBitrate
-
+	for _, stream := range manager.streams {
 		diffs = append(diffs, streamDiff{
 			id:          stream.ID(),
-			bitrateDiff: currentDiff,
+			bitrateDiff: peerBitrate - stream.Bitrate(),
 		})
 	}
 
@@ -153,11 +149,24 @@ func (m *BucketsManagerCtx) findNearestStream(peerBitrate int) types.StreamSinkM
 
 	bestDiff := diffs[0]
 
-	return m.streams[bestDiff.id]
+	return manager.streams[bestDiff.id]
 }
 
-func (m *BucketsManagerCtx) RemoveReceiver(receiver types.Receiver) error {
+func (manager *BucketsManagerCtx) RemoveReceiver(receiver types.Receiver) error {
 	receiver.OnBitrateChange(nil)
+	receiver.OnVideoChange(nil)
 	receiver.RemoveStream()
 	return nil
+}
+
+func (manager *BucketsManagerCtx) SetVideoAuto(auto bool) {
+	manager.Lock()
+	defer manager.Unlock()
+	manager.videoAuto = auto
+}
+
+func (manager *BucketsManagerCtx) VideoAuto() bool {
+	manager.Lock()
+	defer manager.Unlock()
+	return manager.videoAuto
 }

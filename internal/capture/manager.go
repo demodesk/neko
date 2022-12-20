@@ -69,7 +69,8 @@ func New(desktop types.DesktopManager, config *config.Capture) *CaptureManagerCt
 			Msg("syntax check for video stream pipeline passed")
 
 		getVideoBitrate := pipelineConf.GetBitrateFn(desktop.GetScreenSize)
-		if err != nil {
+
+		if _, err = getVideoBitrate(); err != nil {
 			logger.Panic().Err(err).Msg("unable to get video bitrate")
 		}
 		// append to videos

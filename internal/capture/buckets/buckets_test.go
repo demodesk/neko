@@ -80,8 +80,8 @@ func (m mockStreamSink) ID() string {
 	return m.id
 }
 
-func (m mockStreamSink) Bitrate() (int, error) {
-	return m.bitrate, nil
+func (m mockStreamSink) Bitrate() int {
+	return m.bitrate
 }
 
 func TestBucketsManagerCtx_normaliseBitrate(t *testing.T) {

@@ -27,7 +27,7 @@ type Track struct {
 	onRtcp   func(rtcp.Packet)
 	onRtcpMu sync.RWMutex
 
-	bitrateChange func(int, bool) (bool, error)
+	bitrateChange func(int) (bool, error)
 	videoChange   func(string) (bool, error)
 }
 
@@ -142,12 +142,12 @@ func (t *Track) OnRTCP(f func(rtcp.Packet)) {
 	t.onRtcp = f
 }
 
-func (t *Track) SetBitrate(bitrate int, keepOriginal bool) (bool, error) {
+func (t *Track) SetBitrate(bitrate int) (bool, error) {
 	if t.bitrateChange == nil {
 		return false, fmt.Errorf("bitrate change not supported")
 	}
 
-	return t.bitrateChange(bitrate, keepOriginal)
+	return t.bitrateChange(bitrate)
 }
 
 func (t *Track) SetVideoID(videoID string) (bool, error) {
@@ -158,7 +158,7 @@ func (t *Track) SetVideoID(videoID string) (bool, error) {
 	return t.videoChange(videoID)
 }
 
-func (t *Track) OnBitrateChange(f func(int, bool) (bool, error)) {
+func (t *Track) OnBitrateChange(f func(bitrate int) (bool, error)) {
 	t.bitrateChange = f
 }
 

@@ -113,12 +113,14 @@ func (manager *StreamSinkManagerCtx) ID() string {
 	return manager.id
 }
 
-func (manager *StreamSinkManagerCtx) Bitrate() (int, error) {
+func (manager *StreamSinkManagerCtx) Bitrate() int {
 	if manager.getBitrate == nil {
-		return 0, nil
+		return 0
 	}
 	// recalculate bitrate every time, take screen resolution (and fps) into account
-	return manager.getBitrate()
+	// we called this function during startup, so it shouldn't error here
+	bitrate, _ := manager.getBitrate()
+	return bitrate
 }
 
 func (manager *StreamSinkManagerCtx) Codec() codec.RTPCodec {

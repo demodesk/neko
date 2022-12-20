@@ -22,7 +22,7 @@ type Sample media.Sample
 type Receiver interface {
 	SetStream(stream StreamSinkManager) (bool, error)
 	RemoveStream()
-	OnBitrateChange(f func(bitrate int, original bool) (bool, error))
+	OnBitrateChange(f func(bitrate int) (bool, error))
 	OnVideoChange(f func(string) (bool, error))
 }
 
@@ -34,6 +34,8 @@ type BucketsManager interface {
 	DestroyAll()
 	RecreateAll() error
 	Shutdown()
+	VideoAuto() bool
+	SetVideoAuto(videoAuto bool)
 }
 
 type BroadcastManager interface {
@@ -52,7 +54,7 @@ type ScreencastManager interface {
 type StreamSinkManager interface {
 	ID() string
 	Codec() codec.RTPCodec
-	Bitrate() (int, error)
+	Bitrate() int
 
 	AddListener(listener *func(sample Sample)) error
 	RemoveListener(listener *func(sample Sample)) error

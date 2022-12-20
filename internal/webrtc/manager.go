@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -64,10 +63,9 @@ func New(desktop types.DesktopManager, capture types.CaptureManager, config *con
 	}
 
 	return &WebRTCManagerCtx{
-		logger:    log.With().Str("module", "webrtc").Logger(),
-		config:    config,
-		metrics:   newMetrics(),
-		videoAuto: true,
+		logger:  log.With().Str("module", "webrtc").Logger(),
+		config:  config,
+		metrics: newMetrics(),
 
 		webrtcConfiguration: configuration,
 
@@ -79,12 +77,10 @@ func New(desktop types.DesktopManager, capture types.CaptureManager, config *con
 }
 
 type WebRTCManagerCtx struct {
-	logger    zerolog.Logger
-	config    *config.WebRTC
-	metrics   *metricsCtx
-	peerId    int32
-	videoAuto bool
-	mu        sync.Mutex
+	logger  zerolog.Logger
+	config  *config.WebRTC
+	metrics *metricsCtx
+	peerId  int32
 
 	desktop     types.DesktopManager
 	capture     types.CaptureManager
@@ -240,7 +236,7 @@ func (manager *WebRTCManagerCtx) newPeerConnection(codecs []codec.RTPCodec, logg
 	return connection, <-estimatorChan, err
 }
 
-func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.SessionDescription, error) {
+func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int) (*webrtc.SessionDescription, error) {
 	id := atomic.AddInt32(&manager.peerId, 1)
 	manager.metrics.NewConnection(session)
 
@@ -303,7 +299,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 	// let video stream bucket manager handle stream subscriptions
 	video.SetReceiver(videoTrack)
 
-	changeVideoFromBitrate := func(peerBitrate int) (videoID string, bitrate int) {
+	changeVideoFromBitrate := func(peerBitrate int) {
 		// when switching from manual to auto bitrate estimation, in case the estimator is
 		// idle (lastBitrate > maxBitrate), we want to go back to the previous estimated bitrate
 		if peerBitrate == 0 {
@@ -313,21 +309,18 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 
 		manager.metrics.SetReceiverEstimatedMaximumBitrate(session, float64(peerBitrate))
 
-		ok, err := videoTrack.SetBitrate(peerBitrate, !manager.VideoAuto())
+		ok, err := videoTrack.SetBitrate(peerBitrate)
 		if err != nil {
 			logger.Error().Err(err).Int("peerBitrate", peerBitrate).Msg("unable to set video bitrate")
 			return
 		}
 
-		videoID = videoTrack.stream.ID()
-		bitrate, err = videoTrack.stream.Bitrate()
-		if err != nil {
-			logger.Warn().Err(err).Msg("unable to get video bitrate")
-		}
-
 		if !ok {
 			return
 		}
+
+		videoID := videoTrack.stream.ID()
+		bitrate := videoTrack.stream.Bitrate()
 
 		manager.metrics.SetVideoID(session, videoID)
 		manager.logger.Debug().
@@ -336,15 +329,13 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 			Str("video_id", videoID).
 			Msg("peer bitrate triggered video stream change")
 
-		if manager.VideoAuto() {
-			go session.Send(
-				event.SIGNAL_VIDEO,
-				message.SignalVideo{
-					Video:     videoID,
-					Bitrate:   bitrate,
-					VideoAuto: manager.VideoAuto(),
-				})
-		}
+		go session.Send(
+			event.SIGNAL_VIDEO,
+			message.SignalVideo{
+				Video:     videoID,
+				Bitrate:   bitrate,
+				VideoAuto: manager.capture.Video().VideoAuto(),
+			})
 		return
 	}
 
@@ -355,14 +346,11 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 			return
 		}
 
-		bitrate, err = videoTrack.stream.Bitrate()
-		if err != nil {
-			logger.Error().Err(err).Msg("unable to get video bitrate")
-		}
-
 		if !ok {
 			return
 		}
+
+		bitrate = videoTrack.stream.Bitrate()
 
 		manager.logger.Debug().
 			Str("video_id", videoID).
@@ -371,9 +359,6 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 		return
 	}
 
-	// get video bitrate from estimator
-	bitrate := estimator.GetTargetBitrate()
-
 	manager.logger.Info().Int("target-bitrate", bitrate).Msg("estimated initial peer bitrate")
 
 	// set initial video bitrate
@@ -381,11 +366,14 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 
 	// use a ticker to get current client target bitrate
 	go func() {
-		for range time.Tick(250 * time.Millisecond) {
-			if manager.VideoAuto() {
-				targetBitrate := estimator.GetTargetBitrate()
-				changeVideoFromBitrate(targetBitrate)
+		ticker := time.NewTicker(250 * time.Millisecond)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			if connection.ConnectionState() == webrtc.PeerConnectionStateClosed {
+				break
 			}
+			changeVideoFromBitrate(estimator.GetTargetBitrate())
 		}
 	}()
 
@@ -643,18 +631,6 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 	}()
 
 	return offer, nil
-}
-
-func (manager *WebRTCManagerCtx) SetVideoAuto(auto bool) {
-	manager.mu.Lock()
-	defer manager.mu.Unlock()
-	manager.videoAuto = auto
-}
-
-func (manager *WebRTCManagerCtx) VideoAuto() bool {
-	manager.mu.Lock()
-	defer manager.mu.Unlock()
-	return manager.videoAuto
 }
 
 func (manager *WebRTCManagerCtx) SetCursorPosition(x, y int) {

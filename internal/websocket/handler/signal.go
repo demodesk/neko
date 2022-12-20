@@ -13,7 +13,7 @@ func (h *MessageHandlerCtx) signalRequest(session types.Session, payload *messag
 		return errors.New("not allowed to watch")
 	}
 
-	offer, err := h.webrtc.CreatePeer(session)
+	offer, err := h.webrtc.CreatePeer(session, payload.Bitrate)
 	if err != nil {
 		return err
 	}
@@ -32,8 +32,9 @@ func (h *MessageHandlerCtx) signalRequest(session types.Session, payload *messag
 		message.SignalProvide{
 			SDP:        offer.SDP,
 			ICEServers: h.webrtc.ICEServers(),
-			Video:      payload.Video, // TODO: Refactor.
-			VideoAuto:  h.webrtc.VideoAuto(),
+			Video:      payload.Video, // TODO: Refactor
+			Bitrate:    payload.Bitrate,
+			VideoAuto:  h.capture.Video().VideoAuto(),
 		})
 
 	return nil
@@ -109,27 +110,17 @@ func (h *MessageHandlerCtx) signalVideo(session types.Session, payload *message.
 		return errors.New("webRTC peer does not exist")
 	}
 
-	h.webrtc.SetVideoAuto(payload.VideoAuto)
+	h.capture.Video().SetVideoAuto(payload.VideoAuto)
 
-	msg := message.SignalVideo{
-		Video:     payload.Video,
-		Bitrate:   payload.Bitrate,
-		VideoAuto: payload.VideoAuto,
-	}
-
-	var err error
 	if payload.Video != "" {
-		msg.Bitrate, err = peer.SetVideoID(payload.Video)
-		if err != nil {
+		if err := peer.SetVideoID(payload.Video); err != nil {
 			h.logger.Error().Err(err).Msg("failed to set video id")
 		}
 	} else {
-		msg.Video, msg.Bitrate, err = peer.SetVideoBitrate(payload.Bitrate)
-		if err != nil {
+		if err := peer.SetVideoBitrate(payload.Bitrate); err != nil {
 			h.logger.Error().Err(err).Msg("failed to set video bitrate")
 		}
 	}
 
-	session.Send(event.SIGNAL_VIDEO, msg)
 	return nil
 }
