@@ -13,7 +13,7 @@ func (h *MessageHandlerCtx) signalRequest(session types.Session, payload *messag
 		return errors.New("not allowed to watch")
 	}
 
-	offer, err := h.webrtc.CreatePeer(session, payload.Bitrate)
+	offer, err := h.webrtc.CreatePeer(session, payload.Bitrate, payload.VideoAuto)
 	if err != nil {
 		return err
 	}
@@ -34,7 +34,7 @@ func (h *MessageHandlerCtx) signalRequest(session types.Session, payload *messag
 			ICEServers: h.webrtc.ICEServers(),
 			Video:      payload.Video, // TODO: Refactor
 			Bitrate:    payload.Bitrate,
-			VideoAuto:  h.capture.Video().VideoAuto(),
+			VideoAuto:  payload.VideoAuto,
 		})
 
 	return nil
@@ -110,7 +110,7 @@ func (h *MessageHandlerCtx) signalVideo(session types.Session, payload *message.
 		return errors.New("webRTC peer does not exist")
 	}
 
-	h.capture.Video().SetVideoAuto(payload.VideoAuto)
+	peer.SetVideoAuto(payload.VideoAuto)
 
 	if payload.Video != "" {
 		if err := peer.SetVideoID(payload.Video); err != nil {

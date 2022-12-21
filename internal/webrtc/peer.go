@@ -21,6 +21,7 @@ type WebRTCPeerCtx struct {
 	changeVideoFromID      func(id string) int
 	videoId                func() string
 	setPaused              func(isPaused bool)
+	setVideoAuto           func(auto bool)
 	iceTrickle             bool
 }
 
@@ -227,4 +228,8 @@ func (peer *WebRTCPeerCtx) Destroy() {
 		peer.logger.Err(err).Msg("peer connection destroyed")
 		peer.connection = nil
 	}
+}
+
+func (peer *WebRTCPeerCtx) SetVideoAuto(auto bool) {
+	peer.setVideoAuto(auto)
 }

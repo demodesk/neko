@@ -4,7 +4,6 @@ import (
 	"errors"
 	"math"
 	"sort"
-	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -19,9 +18,7 @@ type BucketsManagerCtx struct {
 	codec          codec.RTPCodec
 	streams        map[string]types.StreamSinkManager
 	streamIDs      []string
-	videoAuto      bool
 	bitrateHistory *queue
-	sync.Mutex
 }
 
 func BucketsNew(codec codec.RTPCodec, streams map[string]types.StreamSinkManager, streamIDs []string) *BucketsManagerCtx {
@@ -75,11 +72,11 @@ func (manager *BucketsManagerCtx) Codec() codec.RTPCodec {
 
 func (manager *BucketsManagerCtx) SetReceiver(receiver types.Receiver) {
 	receiver.OnBitrateChange(func(bitrate int) (bool, error) {
-		if manager.videoAuto {
+		if receiver.VideoAuto() {
 			bitrate = manager.normaliseBitrate(bitrate)
 		}
 		stream := manager.findNearestStream(bitrate)
-		manager.logger.Info().Str("video_id", stream.ID()).Int("peerBitrate", bitrate).Int("bitrate", bitrate).Msg("change video bitrate")
+		manager.logger.Debug().Str("video_id", stream.ID()).Int("peerBitrate", bitrate).Int("bitrate", bitrate).Msg("change video bitrate")
 		return receiver.SetStream(stream)
 	})
 
@@ -157,16 +154,4 @@ func (manager *BucketsManagerCtx) RemoveReceiver(receiver types.Receiver) error 
 	receiver.OnVideoChange(nil)
 	receiver.RemoveStream()
 	return nil
-}
-
-func (manager *BucketsManagerCtx) SetVideoAuto(auto bool) {
-	manager.Lock()
-	defer manager.Unlock()
-	manager.videoAuto = auto
-}
-
-func (manager *BucketsManagerCtx) VideoAuto() bool {
-	manager.Lock()
-	defer manager.Unlock()
-	return manager.videoAuto
 }

@@ -16,10 +16,12 @@ import (
 )
 
 type Track struct {
-	logger   zerolog.Logger
-	track    *webrtc.TrackLocalStaticSample
-	paused   bool
-	listener func(sample types.Sample)
+	logger      zerolog.Logger
+	track       *webrtc.TrackLocalStaticSample
+	paused      bool
+	videoAuto   bool
+	videoAutoMu sync.RWMutex
+	listener    func(sample types.Sample)
 
 	stream   types.StreamSinkManager
 	streamMu sync.Mutex
@@ -31,7 +33,15 @@ type Track struct {
 	videoChange   func(string) (bool, error)
 }
 
-func NewTrack(logger zerolog.Logger, codec codec.RTPCodec, connection *webrtc.PeerConnection) (*Track, error) {
+type option func(*Track)
+
+func WithVideoAuto(auto bool) option {
+	return func(t *Track) {
+		t.videoAuto = auto
+	}
+}
+
+func NewTrack(logger zerolog.Logger, codec codec.RTPCodec, connection *webrtc.PeerConnection, opts ...option) (*Track, error) {
 	id := codec.Type.String()
 	track, err := webrtc.NewTrackLocalStaticSample(codec.Capability, id, "stream")
 	if err != nil {
@@ -43,6 +53,10 @@ func NewTrack(logger zerolog.Logger, codec codec.RTPCodec, connection *webrtc.Pe
 	t := &Track{
 		logger: logger,
 		track:  track,
+	}
+
+	for _, opt := range opts {
+		opt(t)
 	}
 
 	t.listener = func(sample types.Sample) {
@@ -164,4 +178,16 @@ func (t *Track) OnBitrateChange(f func(bitrate int) (bool, error)) {
 
 func (t *Track) OnVideoChange(f func(string) (bool, error)) {
 	t.videoChange = f
+}
+
+func (t *Track) SetVideoAuto(auto bool) {
+	t.videoAutoMu.Lock()
+	defer t.videoAutoMu.Unlock()
+	t.videoAuto = auto
+}
+
+func (t *Track) VideoAuto() bool {
+	t.videoAutoMu.RLock()
+	defer t.videoAutoMu.RUnlock()
+	return t.videoAuto
 }

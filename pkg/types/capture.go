@@ -8,9 +8,8 @@ import (
 	"strings"
 
 	"github.com/PaesslerAG/gval"
-	"github.com/pion/webrtc/v3/pkg/media"
-
 	"github.com/demodesk/neko/pkg/types/codec"
+	"github.com/pion/webrtc/v3/pkg/media"
 )
 
 var (
@@ -24,6 +23,8 @@ type Receiver interface {
 	RemoveStream()
 	OnBitrateChange(f func(bitrate int) (bool, error))
 	OnVideoChange(f func(string) (bool, error))
+	VideoAuto() bool
+	SetVideoAuto(videoAuto bool)
 }
 
 type BucketsManager interface {
@@ -34,8 +35,6 @@ type BucketsManager interface {
 	DestroyAll()
 	RecreateAll() error
 	Shutdown()
-	VideoAuto() bool
-	SetVideoAuto(videoAuto bool)
 }
 
 type BroadcastManager interface {
@@ -219,7 +218,7 @@ func (config *VideoConfig) GetBitrateFn(getScreen func() *ScreenSize) func() (in
 
 		targetBitrate, err := gval.Evaluate(expr, values, language...)
 		if err != nil {
-			return 0, err
+			return 0, fmt.Errorf("failed to evaluate target-bitrate: %w", err)
 		}
 
 		return targetBitrate.(int), nil

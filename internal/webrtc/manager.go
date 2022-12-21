@@ -152,7 +152,7 @@ func (manager *WebRTCManagerCtx) ICEServers() []types.ICEServer {
 	return manager.config.ICEServers
 }
 
-func (manager *WebRTCManagerCtx) newPeerConnection(codecs []codec.RTPCodec, logger zerolog.Logger) (*webrtc.PeerConnection, cc.BandwidthEstimator, error) {
+func (manager *WebRTCManagerCtx) newPeerConnection(bitrate int, codecs []codec.RTPCodec, logger zerolog.Logger) (*webrtc.PeerConnection, cc.BandwidthEstimator, error) {
 	// create media engine
 	engine := &webrtc.MediaEngine{}
 	for _, codec := range codecs {
@@ -203,7 +203,10 @@ func (manager *WebRTCManagerCtx) newPeerConnection(codecs []codec.RTPCodec, logg
 	registry := &interceptor.Registry{}
 
 	congestionController, err := cc.NewInterceptor(func() (cc.BandwidthEstimator, error) {
-		return gcc.NewSendSideBWE(gcc.SendSideBWEInitialBitrate(1000000))
+		if bitrate == 0 {
+			bitrate = 1000000
+		}
+		return gcc.NewSendSideBWE(gcc.SendSideBWEInitialBitrate(bitrate))
 	})
 	if err != nil {
 		return nil, nil, err
@@ -236,7 +239,7 @@ func (manager *WebRTCManagerCtx) newPeerConnection(codecs []codec.RTPCodec, logg
 	return connection, <-estimatorChan, err
 }
 
-func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int) (*webrtc.SessionDescription, error) {
+func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int, videoAuto bool) (*webrtc.SessionDescription, error) {
 	id := atomic.AddInt32(&manager.peerId, 1)
 	manager.metrics.NewConnection(session)
 
@@ -252,12 +255,16 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int) 
 	video := manager.capture.Video()
 	videoCodec := video.Codec()
 
-	connection, estimator, err := manager.newPeerConnection([]codec.RTPCodec{
+	connection, estimator, err := manager.newPeerConnection(bitrate, []codec.RTPCodec{
 		audioCodec,
 		videoCodec,
 	}, logger)
 	if err != nil {
 		return nil, err
+	}
+
+	if bitrate == 0 {
+		bitrate = estimator.GetTargetBitrate()
 	}
 
 	// asynchronously send local ICE Candidates
@@ -290,8 +297,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int) 
 	}
 
 	// video track
-
-	videoTrack, err := NewTrack(logger, videoCodec, connection)
+	videoTrack, err := NewTrack(logger, videoCodec, connection, WithVideoAuto(videoAuto))
 	if err != nil {
 		return nil, err
 	}
@@ -334,7 +340,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int) 
 			message.SignalVideo{
 				Video:     videoID,
 				Bitrate:   bitrate,
-				VideoAuto: manager.capture.Video().VideoAuto(),
+				VideoAuto: videoTrack.VideoAuto(),
 			})
 		return
 	}
@@ -399,6 +405,9 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int) 
 			audioTrack.SetPaused(isPaused)
 		},
 		iceTrickle: manager.config.ICETrickle,
+		setVideoAuto: func(videoAuto bool) {
+			videoTrack.SetVideoAuto(videoAuto)
+		},
 	}
 
 	connection.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
