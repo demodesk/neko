@@ -37,13 +37,11 @@ type batchHandler struct {
 }
 
 func (b *batchHandler) Handle(w http.ResponseWriter, r *http.Request) error {
-	// parse BatchRequests
 	var requests []BatchRequest
 	if err := json.NewDecoder(r.Body).Decode(&requests); err != nil {
 		return err
 	}
 
-	// execute BatchRequests
 	responses := make([]BatchResponse, len(requests))
 	for i, request := range requests {
 		res := BatchResponse{
@@ -63,7 +61,7 @@ func (b *batchHandler) Handle(w http.ResponseWriter, r *http.Request) error {
 			continue
 		}
 
-		// do request
+		// prepare request
 		req, err := http.NewRequest(request.Method, request.Path, bytes.NewBuffer(request.Body))
 		if err != nil {
 			return err
@@ -95,9 +93,7 @@ func (b *batchHandler) Handle(w http.ResponseWriter, r *http.Request) error {
 		}
 	}
 
-	// write BatchResponses
-	w.Header().Set("Content-Type", "application/json")
-	return json.NewEncoder(w).Encode(responses)
+	return utils.HttpSuccess(w, responses)
 }
 
 type responseRecorder struct {
