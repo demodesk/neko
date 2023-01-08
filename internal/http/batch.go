@@ -24,17 +24,10 @@ type BatchResponse struct {
 	Status int             `json:"status"`
 }
 
-func (b *BatchResponse) Error(httpErr *utils.HTTPError) error {
+func (b *BatchResponse) Error(httpErr *utils.HTTPError) (err error) {
+	b.Body, err = json.Marshal(httpErr)
 	b.Status = httpErr.Code
-	httpErr.Code = 0
-
-	data, err := json.Marshal(httpErr)
-	if err != nil {
-		return err
-	}
-
-	b.Body = data
-	return nil
+	return
 }
 
 type batchHandler struct {
