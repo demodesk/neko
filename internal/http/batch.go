@@ -14,13 +14,13 @@ import (
 type BatchRequest struct {
 	Path   string          `json:"path"`
 	Method string          `json:"method"`
-	Body   json.RawMessage `json:"body"`
+	Body   json.RawMessage `json:"body,omitempty"`
 }
 
 type BatchResponse struct {
 	Path   string          `json:"path"`
 	Method string          `json:"method"`
-	Body   json.RawMessage `json:"body"`
+	Body   json.RawMessage `json:"body,omitempty"`
 	Status int             `json:"status"`
 }
 
