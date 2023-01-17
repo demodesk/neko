@@ -1,5 +1,7 @@
 package payload
 
+import "math"
+
 const (
 	OP_CURSOR_POSITION = 0x01
 	OP_CURSOR_IMAGE    = 0x02
@@ -28,4 +30,8 @@ type Pong struct {
 	// server's timestamp split into two uint32
 	ServerTs1 uint32
 	ServerTs2 uint32
+}
+
+func (p Pong) ServerTs() uint64 {
+	return (uint64(p.ServerTs1) * uint64(math.MaxUint32)) + uint64(p.ServerTs2)
 }

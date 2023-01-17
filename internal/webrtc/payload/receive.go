@@ -1,5 +1,7 @@
 package payload
 
+import "math"
+
 const (
 	OP_MOVE     = 0x01
 	OP_SCROLL   = 0x02
@@ -36,4 +38,8 @@ type Ping struct {
 	// client's timestamp split into two uint32
 	ClientTs1 uint32
 	ClientTs2 uint32
+}
+
+func (p Ping) ClientTs() uint64 {
+	return (uint64(p.ClientTs1) * uint64(math.MaxUint32)) + uint64(p.ClientTs2)
 }
