@@ -313,8 +313,6 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int, 
 			manager.logger.Debug().Int("peerBitrate", peerBitrate).Msg("evaluated bitrate")
 		}
 
-		manager.metrics.SetReceiverEstimatedMaximumBitrate(session, float64(peerBitrate))
-
 		ok, err := videoTrack.SetBitrate(peerBitrate)
 		if err != nil {
 			logger.Error().Err(err).Int("peerBitrate", peerBitrate).Msg("unable to set video bitrate")
@@ -362,6 +360,14 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int, 
 			Str("video_id", videoID).
 			Int("video-bitrate", bitrate).
 			Msg("peer video id triggered video stream change")
+
+		go session.Send(
+			event.SIGNAL_VIDEO,
+			message.SignalVideo{
+				Video:     videoID,
+				Bitrate:   bitrate,
+				VideoAuto: videoTrack.VideoAuto(),
+			})
 		return
 	}
 
@@ -376,10 +382,16 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int, 
 		defer ticker.Stop()
 
 		for range ticker.C {
+			targetBitrate := estimator.GetTargetBitrate()
+			manager.metrics.SetReceiverEstimatedMaximumBitrate(session, float64(targetBitrate))
+
 			if connection.ConnectionState() == webrtc.PeerConnectionStateClosed {
 				break
 			}
-			changeVideoFromBitrate(estimator.GetTargetBitrate())
+			if !videoTrack.VideoAuto() {
+				continue
+			}
+			changeVideoFromBitrate(targetBitrate)
 		}
 	}()
 
@@ -397,17 +409,14 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int, 
 		changeVideoFromBitrate: changeVideoFromBitrate,
 		changeVideoFromID:      changeVideoFromID,
 		// TODO: Refactor.
-		videoId: func() string {
-			return videoTrack.stream.ID()
-		},
+		videoId: videoTrack.stream.ID,
 		setPaused: func(isPaused bool) {
 			videoTrack.SetPaused(isPaused)
 			audioTrack.SetPaused(isPaused)
 		},
-		iceTrickle: manager.config.ICETrickle,
-		setVideoAuto: func(videoAuto bool) {
-			videoTrack.SetVideoAuto(videoAuto)
-		},
+		iceTrickle:   manager.config.ICETrickle,
+		setVideoAuto: videoTrack.SetVideoAuto,
+		getVideoAuto: videoTrack.VideoAuto,
 	}
 
 	connection.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {

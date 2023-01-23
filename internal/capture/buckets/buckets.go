@@ -71,12 +71,15 @@ func (manager *BucketsManagerCtx) Codec() codec.RTPCodec {
 }
 
 func (manager *BucketsManagerCtx) SetReceiver(receiver types.Receiver) {
-	receiver.OnBitrateChange(func(bitrate int) (bool, error) {
+	receiver.OnBitrateChange(func(peerBitrate int) (bool, error) {
+		bitrate := peerBitrate
+		streamID := ""
 		if receiver.VideoAuto() {
 			bitrate = manager.normaliseBitrate(bitrate)
+			defer manager.logger.Debug().Str("video_id", streamID).Int("len", manager.bitrateHistory.len()).Int("peerBitrate", peerBitrate).Int("bitrate", bitrate).Msg("change video bitrate")
 		}
 		stream := manager.findNearestStream(bitrate)
-		manager.logger.Debug().Str("video_id", stream.ID()).Int("peerBitrate", bitrate).Int("bitrate", bitrate).Msg("change video bitrate")
+		streamID = stream.ID()
 		return receiver.SetStream(stream)
 	})
 

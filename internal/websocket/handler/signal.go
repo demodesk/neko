@@ -51,7 +51,7 @@ func (h *MessageHandlerCtx) signalRestart(session types.Session) error {
 		return err
 	}
 
-	// TODO: Use offer event intead.
+	// TODO: Use offer event instead.
 	session.Send(
 		event.SIGNAL_RESTART,
 		message.SignalDescription{

@@ -29,6 +29,7 @@ type WebRTCPeer interface {
 	GetVideoID() string
 	SetPaused(isPaused bool) error
 	SetVideoAuto(auto bool)
+	VideoAuto() bool
 
 	SendCursorPosition(x, y int) error
 	SendCursorImage(cur *CursorImage, img []byte) error
