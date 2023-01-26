@@ -232,13 +232,9 @@ func (peer *WebRTCPeerCtx) Destroy() {
 }
 
 func (peer *WebRTCPeerCtx) SetVideoAuto(auto bool) {
-	peer.mu.Lock()
-	defer peer.mu.Unlock()
 	peer.setVideoAuto(auto)
 }
 
 func (peer *WebRTCPeerCtx) VideoAuto() bool {
-	peer.mu.Lock()
-	defer peer.mu.Unlock()
 	return peer.getVideoAuto()
 }
