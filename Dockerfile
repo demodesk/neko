@@ -91,7 +91,7 @@ RUN set -eux; \
         gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
         gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \
         gstreamer1.0-pulseaudio; \
-    # install libxcvt (not available in debian:bullseye)
+    # install libxcvt0 (not available in debian:bullseye)
     wget http://ftp.de.debian.org/debian/pool/main/libx/libxcvt/libxcvt0_0.1.2-1_amd64.deb; \
     apt-get install  --no-install-recommends ./libxcvt0_0.1.2-1_amd64.deb; \
     rm ./libxcvt0_0.1.2-1_amd64.deb; \

@@ -285,7 +285,7 @@ short XGetScreenRate() {
   return rate;
 }
 
-// Inspired by https://fossies.org/linux/xwayland/hw/xwayland/xwayland-cvt.c
+// Inspired by https://github.com/raboof/xrandr/blob/master/xrandr.c
 void XCreateScreenMode(int width, int height, short rate) {
   Display *display = getXDisplay();
   Window root = RootWindow(display, 0);
@@ -321,7 +321,7 @@ void XCreateScreenMode(int width, int height, short rate) {
   XRRFreeScreenResources(resources);
 }
 
-// Inspired by https://github.com/raboof/xrandr/blob/master/xrandr.c
+// Inspired by https://fossies.org/linux/xwayland/hw/xwayland/xwayland-cvt.c
 XRRModeInfo XCreateScreenModeInfo(int hdisplay, int vdisplay, short vrefresh) {
   XRRModeInfo modeinfo;
   memset(&modeinfo, 0, sizeof modeinfo);
