@@ -1,7 +1,7 @@
 package xorg
 
 /*
-#cgo LDFLAGS: -lX11 -lXrandr -lXtst -lXfixes
+#cgo LDFLAGS: -lX11 -lXrandr -lXtst -lXfixes -lxcvt
 
 #include "xorg.h"
 */
@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"math"
 	"sync"
 	"time"
 	"unsafe"
@@ -37,6 +38,7 @@ func GetScreenConfigurations() {
 	mu.Lock()
 	defer mu.Unlock()
 
+	ScreenConfigurations = make(map[int]types.ScreenConfiguration)
 	C.XGetScreenConfigurations()
 }
 
@@ -178,22 +180,59 @@ func CheckKeys(duration time.Duration) {
 	}
 }
 
-func ChangeScreenSize(width int, height int, rate int16) error {
-	mu.Lock()
-	defer mu.Unlock()
-
+// set screen configuration from saved configuration
+func changeScreenSize(width int, height int, rate int16) (int, int, int16, error) {
 	for index, size := range ScreenConfigurations {
-		if size.Width == width && size.Height == height {
-			for _, fps := range size.Rates {
-				if rate == fps {
-					C.XSetScreenConfiguration(C.int(index), C.short(fps))
-					return nil
-				}
+		if size.Width != width || size.Height != height {
+			continue
+		}
+
+		fmt.Printf("set screen configuration %dx%d@%d with index %d, rates %d\n", width, height, rate, index, len(size.Rates))
+		nearestFps, diff := int16(0), float64(0)
+		for _, fps := range size.Rates {
+			if nearestFps == 0 || math.Abs(float64(fps)-float64(rate)) < diff {
+				nearestFps = fps
+				diff = math.Abs(float64(fps) - float64(rate))
+				fmt.Printf("adding nearest fps %d with diff %f\n", nearestFps, diff)
 			}
+		}
+
+		if nearestFps != 0 && diff < 10 {
+			C.XSetScreenConfiguration(C.int(index), C.short(nearestFps))
+			return int(size.Width), int(size.Height), nearestFps, nil
+		} else if len(size.Rates) == 1 && nearestFps == 0 {
+			// if there is only one rate with 0 fps, we probably do not have libxcvt installed
+			C.XSetScreenConfiguration(C.int(index), 0)
+			return int(size.Width), int(size.Height), 0, nil
 		}
 	}
 
-	return fmt.Errorf("unknown screen configuration %dx%d@%d", width, height, rate)
+	return 0, 0, 0, fmt.Errorf("unknown screen configuration %dx%d@%d", width, height, rate)
+}
+
+// set screen configuration, create new one if not exists
+func ChangeScreenSize(width int, height int, rate int16) (int, int, int16, error) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	// round width and height to 8
+	width = width - (width % 8)
+	height = height - (height % 8)
+
+	// if screen configuration already exists, just set it
+	if w, h, r, err := changeScreenSize(width, height, rate); err == nil {
+		return w, h, r, nil
+	}
+
+	// create new screen configuration
+	C.XCreateScreenMode(C.int(width), C.int(height), C.short(rate))
+
+	// get latest screen configurations
+	ScreenConfigurations = make(map[int]types.ScreenConfiguration)
+	C.XGetScreenConfigurations()
+
+	// set new screen configuration
+	return changeScreenSize(width, height, rate)
 }
 
 func GetScreenSize() *types.ScreenSize {
@@ -310,11 +349,5 @@ func goCreateScreenSize(index C.int, width C.int, height C.int, mwidth C.int, mh
 //export goSetScreenRates
 func goSetScreenRates(index C.int, rate_index C.int, rateC C.short) {
 	rate := int16(rateC)
-
-	// filter out all irrelevant rates
-	if rate > 60 || (rate > 30 && rate%10 != 0) {
-		return
-	}
-
 	ScreenConfigurations[int(index)].Rates[int(rate_index)] = rate
 }

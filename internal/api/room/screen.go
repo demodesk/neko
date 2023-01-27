@@ -34,13 +34,21 @@ func (h *RoomHandler) screenConfigurationChange(w http.ResponseWriter, r *http.R
 		return err
 	}
 
-	size := types.ScreenSize(*data)
-	if err := h.desktop.SetScreenSize(size); err != nil {
+	size, err := h.desktop.SetScreenSize(types.ScreenSize{
+		Width:  data.Width,
+		Height: data.Height,
+		Rate:   data.Rate,
+	})
+
+	if err != nil {
 		return utils.HttpUnprocessableEntity("cannot set screen size").WithInternalErr(err)
 	}
 
-	payload := message.ScreenSize(*data)
-	h.sessions.Broadcast(event.SCREEN_UPDATED, payload)
+	h.sessions.Broadcast(event.SCREEN_UPDATED, message.ScreenSize{
+		Width:  size.Width,
+		Height: size.Height,
+		Rate:   size.Rate,
+	})
 
 	return utils.HttpSuccess(w, data)
 }

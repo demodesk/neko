@@ -58,7 +58,7 @@ type DesktopManager interface {
 	KeyPress(codes ...uint32) error
 	ResetKeys()
 	ScreenConfigurations() map[int]ScreenConfiguration
-	SetScreenSize(ScreenSize) error
+	SetScreenSize(ScreenSize) (ScreenSize, error)
 	GetScreenSize() *ScreenSize
 	SetKeyboardMap(KeyboardMap) error
 	GetKeyboardMap() (*KeyboardMap, error)
