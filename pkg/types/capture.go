@@ -211,17 +211,33 @@ func (config *VideoConfig) GetBitrateFn(getScreen func() *ScreenSize) func() (in
 			}),
 		}
 
+		// TOOD: do not read target-bitrate from pipeline, but only from config.
+
 		// TODO: This is only for vp8.
 		expr, ok := config.GstParams["target-bitrate"]
 		if !ok {
-			return 0, fmt.Errorf("target-bitrate not found")
+			// TODO: This is only for h264.
+			expr, ok = config.GstParams["bitrate"]
+			if !ok {
+				return 0, fmt.Errorf("bitrate not found")
+			}
 		}
 
-		targetBitrate, err := gval.Evaluate(expr, values, language...)
+		bitrate, err := gval.Evaluate(expr, values, language...)
 		if err != nil {
-			return 0, fmt.Errorf("failed to evaluate target-bitrate: %w", err)
+			return 0, fmt.Errorf("failed to evaluate bitrate: %w", err)
 		}
 
-		return targetBitrate.(int), nil
+		var bitrateInt int
+		switch val := bitrate.(type) {
+		case int:
+			bitrateInt = val
+		case float64:
+			bitrateInt = (int)(val)
+		default:
+			return 0, fmt.Errorf("bitrate is not int or float64")
+		}
+
+		return bitrateInt, nil
 	}
 }
