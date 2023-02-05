@@ -2,9 +2,7 @@ package buckets
 
 import (
 	"errors"
-	"math"
 	"sort"
-	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -14,11 +12,10 @@ import (
 )
 
 type BucketsManagerCtx struct {
-	logger         zerolog.Logger
-	codec          codec.RTPCodec
-	streams        map[string]types.StreamSinkManager
-	streamIDs      []string
-	bitrateHistory *queue
+	logger    zerolog.Logger
+	codec     codec.RTPCodec
+	streams   map[string]types.StreamSinkManager
+	streamIDs []string
 }
 
 func BucketsNew(codec codec.RTPCodec, streams map[string]types.StreamSinkManager, streamIDs []string) *BucketsManagerCtx {
@@ -28,11 +25,10 @@ func BucketsNew(codec codec.RTPCodec, streams map[string]types.StreamSinkManager
 		Logger()
 
 	return &BucketsManagerCtx{
-		logger:         logger,
-		codec:          codec,
-		streams:        streams,
-		streamIDs:      streamIDs,
-		bitrateHistory: &queue{},
+		logger:    logger,
+		codec:     codec,
+		streams:   streams,
+		streamIDs: streamIDs,
 	}
 }
 
@@ -71,10 +67,13 @@ func (manager *BucketsManagerCtx) Codec() codec.RTPCodec {
 }
 
 func (manager *BucketsManagerCtx) SetReceiver(receiver types.Receiver) {
+	// bitrate history is per receiver
+	bitrateHistory := &queue{}
+
 	receiver.OnBitrateChange(func(peerBitrate int) (bool, error) {
 		bitrate := peerBitrate
 		if receiver.VideoAuto() {
-			bitrate = manager.normaliseBitrate(bitrate)
+			bitrate = bitrateHistory.normaliseBitrate(bitrate)
 		}
 
 		stream := manager.findNearestStream(bitrate)
@@ -83,7 +82,7 @@ func (manager *BucketsManagerCtx) SetReceiver(receiver types.Receiver) {
 		// TODO: make this less noisy in logs
 		manager.logger.Debug().
 			Str("video_id", streamID).
-			Int("len", manager.bitrateHistory.len()).
+			Int("len", bitrateHistory.len()).
 			Int("peer_bitrate", peerBitrate).
 			Int("bitrate", bitrate).
 			Msg("change video bitrate")
@@ -99,31 +98,6 @@ func (manager *BucketsManagerCtx) SetReceiver(receiver types.Receiver) {
 
 		return receiver.SetStream(stream)
 	})
-}
-
-func (manager *BucketsManagerCtx) normaliseBitrate(currentBitrate int) int {
-	avgBitrate := float64(manager.bitrateHistory.avg())
-	histLen := float64(manager.bitrateHistory.len())
-
-	manager.bitrateHistory.push(elem{
-		bitrate: currentBitrate,
-		created: time.Now(),
-	})
-
-	if avgBitrate == 0 || histLen == 0 || currentBitrate == 0 {
-		return currentBitrate
-	}
-
-	lastN := int(math.Floor(float64(currentBitrate) / avgBitrate * histLen))
-	if lastN > manager.bitrateHistory.len() {
-		lastN = manager.bitrateHistory.len()
-	}
-
-	if lastN == 0 {
-		return currentBitrate
-	}
-
-	return manager.bitrateHistory.avgLastN(lastN)
 }
 
 func (manager *BucketsManagerCtx) findNearestStream(peerBitrate int) types.StreamSinkManager {
