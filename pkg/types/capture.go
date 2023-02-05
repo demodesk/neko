@@ -19,10 +19,10 @@ var (
 type Sample media.Sample
 
 type Receiver interface {
-	SetStream(stream StreamSinkManager) (bool, error)
+	SetStream(stream StreamSinkManager) (changed bool, err error)
 	RemoveStream()
-	OnBitrateChange(f func(bitrate int) (bool, error))
-	OnVideoChange(f func(string) (bool, error))
+	OnBitrateChange(f func(bitrate int) (changed bool, err error))
+	OnVideoChange(f func(videoID string) (changed bool, err error))
 	VideoAuto() bool
 	SetVideoAuto(videoAuto bool)
 }
@@ -32,6 +32,7 @@ type BucketsManager interface {
 	Codec() codec.RTPCodec
 	SetReceiver(receiver Receiver)
 	RemoveReceiver(receiver Receiver) error
+
 	DestroyAll()
 	RecreateAll() error
 	Shutdown()

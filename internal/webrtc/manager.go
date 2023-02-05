@@ -37,6 +37,9 @@ const keepAliveInterval = 2 * time.Second
 // send a PLI on an interval so that the publisher is pushing a keyframe every rtcpPLIInterval
 const rtcpPLIInterval = 3 * time.Second
 
+// how often we check the bitrate of each client. Default is 250ms
+const bitrateCheckInterval = 250 * time.Millisecond
+
 func New(desktop types.DesktopManager, capture types.CaptureManager, config *config.WebRTC) *WebRTCManagerCtx {
 	configuration := webrtc.Configuration{
 		SDPSemantics: webrtc.SDPSemanticsUnifiedPlanWithFallback,
@@ -310,12 +313,16 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int, 
 		// idle (lastBitrate > maxBitrate), we want to go back to the previous estimated bitrate
 		if peerBitrate == 0 {
 			peerBitrate = estimator.GetTargetBitrate()
-			manager.logger.Debug().Int("peerBitrate", peerBitrate).Msg("evaluated bitrate")
+			manager.logger.Debug().
+				Int("peer_bitrate", peerBitrate).
+				Msg("evaluated bitrate")
 		}
 
 		ok, err := videoTrack.SetBitrate(peerBitrate)
 		if err != nil {
-			logger.Error().Err(err).Int("peerBitrate", peerBitrate).Msg("unable to set video bitrate")
+			logger.Error().Err(err).
+				Int("peer_bitrate", peerBitrate).
+				Msg("unable to set video bitrate")
 			return
 		}
 
@@ -328,8 +335,8 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int, 
 
 		manager.metrics.SetVideoID(session, videoID)
 		manager.logger.Debug().
-			Int("peer-bitrate", peerBitrate).
-			Int("video-bitrate", bitrate).
+			Int("peer_bitrate", peerBitrate).
+			Int("video_bitrate", bitrate).
 			Str("video_id", videoID).
 			Msg("peer bitrate triggered video stream change")
 
@@ -340,17 +347,18 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int, 
 				Bitrate:   bitrate,
 				VideoAuto: videoTrack.VideoAuto(),
 			})
-		return
 	}
 
 	changeVideoFromID := func(videoID string) (bitrate int) {
-		ok, err := videoTrack.SetVideoID(videoID)
+		changed, err := videoTrack.SetVideoID(videoID)
 		if err != nil {
-			logger.Error().Err(err).Str("videoID", videoID).Msg("unable to set video stream")
+			logger.Error().Err(err).
+				Str("video_id", videoID).
+				Msg("unable to set video stream")
 			return
 		}
 
-		if !ok {
+		if !changed {
 			return
 		}
 
@@ -358,7 +366,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int, 
 
 		manager.logger.Debug().
 			Str("video_id", videoID).
-			Int("video-bitrate", bitrate).
+			Int("video_bitrate", bitrate).
 			Msg("peer video id triggered video stream change")
 
 		go session.Send(
@@ -368,17 +376,20 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int, 
 				Bitrate:   bitrate,
 				VideoAuto: videoTrack.VideoAuto(),
 			})
+
 		return
 	}
 
-	manager.logger.Info().Int("target-bitrate", bitrate).Msg("estimated initial peer bitrate")
+	manager.logger.Info().
+		Int("target_bitrate", bitrate).
+		Msg("estimated initial peer bitrate")
 
 	// set initial video bitrate
 	changeVideoFromBitrate(bitrate)
 
 	// use a ticker to get current client target bitrate
 	go func() {
-		ticker := time.NewTicker(250 * time.Millisecond)
+		ticker := time.NewTicker(bitrateCheckInterval)
 		defer ticker.Stop()
 
 		for range ticker.C {

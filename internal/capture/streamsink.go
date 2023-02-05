@@ -117,12 +117,14 @@ func (manager *StreamSinkManagerCtx) Bitrate() int {
 	if manager.getBitrate == nil {
 		return 0
 	}
+
 	// recalculate bitrate every time, take screen resolution (and fps) into account
 	// we called this function during startup, so it shouldn't error here
 	bitrate, err := manager.getBitrate()
 	if err != nil {
 		manager.logger.Err(err).Msg("unexpected error while getting bitrate")
 	}
+
 	return bitrate
 }
 

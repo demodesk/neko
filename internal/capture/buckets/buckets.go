@@ -37,8 +37,9 @@ func BucketsNew(codec codec.RTPCodec, streams map[string]types.StreamSinkManager
 }
 
 func (manager *BucketsManagerCtx) Shutdown() {
-	manager.DestroyAll()
 	manager.logger.Info().Msgf("shutdown")
+
+	manager.DestroyAll()
 }
 
 func (manager *BucketsManagerCtx) DestroyAll() {
@@ -58,7 +59,6 @@ func (manager *BucketsManagerCtx) RecreateAll() error {
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -73,19 +73,30 @@ func (manager *BucketsManagerCtx) Codec() codec.RTPCodec {
 func (manager *BucketsManagerCtx) SetReceiver(receiver types.Receiver) {
 	receiver.OnBitrateChange(func(peerBitrate int) (bool, error) {
 		bitrate := peerBitrate
-		streamID := ""
 		if receiver.VideoAuto() {
 			bitrate = manager.normaliseBitrate(bitrate)
-			defer manager.logger.Debug().Str("video_id", streamID).Int("len", manager.bitrateHistory.len()).Int("peerBitrate", peerBitrate).Int("bitrate", bitrate).Msg("change video bitrate")
 		}
+
 		stream := manager.findNearestStream(bitrate)
-		streamID = stream.ID()
+		streamID := stream.ID()
+
+		// TODO: make this less noisy in logs
+		manager.logger.Debug().
+			Str("video_id", streamID).
+			Int("len", manager.bitrateHistory.len()).
+			Int("peer_bitrate", peerBitrate).
+			Int("bitrate", bitrate).
+			Msg("change video bitrate")
+
 		return receiver.SetStream(stream)
 	})
 
 	receiver.OnVideoChange(func(videoID string) (bool, error) {
 		stream := manager.streams[videoID]
-		manager.logger.Info().Msgf("video change: %s", videoID)
+		manager.logger.Info().
+			Str("video_id", videoID).
+			Msg("video change")
+
 		return receiver.SetStream(stream)
 	})
 }

@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/demodesk/neko/internal/capture/buckets"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"github.com/demodesk/neko/internal/capture/buckets"
 	"github.com/demodesk/neko/internal/config"
 	"github.com/demodesk/neko/pkg/types"
 	"github.com/demodesk/neko/pkg/types/codec"
@@ -69,10 +69,10 @@ func New(desktop types.DesktopManager, config *config.Capture) *CaptureManagerCt
 			Msg("syntax check for video stream pipeline passed")
 
 		getVideoBitrate := pipelineConf.GetBitrateFn(desktop.GetScreenSize)
-
 		if _, err = getVideoBitrate(); err != nil {
 			logger.Panic().Err(err).Msg("unable to get video bitrate")
 		}
+
 		// append to videos
 		videos[video_id] = streamSinkNew(config.VideoCodec, createPipeline, video_id, getVideoBitrate)
 	}

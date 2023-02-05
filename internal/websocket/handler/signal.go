@@ -13,6 +13,21 @@ func (h *MessageHandlerCtx) signalRequest(session types.Session, payload *messag
 		return errors.New("not allowed to watch")
 	}
 
+	// use default first video, if not provided
+	if payload.Video == "" {
+		videos := h.capture.Video().IDs()
+		payload.Video = videos[0]
+	}
+
+	var err error
+	if payload.Bitrate == 0 {
+		// get bitrate from video id
+		payload.Bitrate, err = h.capture.GetBitrateFromVideoID(payload.Video)
+		if err != nil {
+			return err
+		}
+	}
+
 	offer, err := h.webrtc.CreatePeer(session, payload.Bitrate, payload.VideoAuto)
 	if err != nil {
 		return err

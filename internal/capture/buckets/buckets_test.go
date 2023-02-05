@@ -6,12 +6,10 @@ import (
 
 	"github.com/demodesk/neko/pkg/types"
 	"github.com/demodesk/neko/pkg/types/codec"
-	"github.com/rs/zerolog"
 )
 
 func TestBucketsManagerCtx_FindNearestStream(t *testing.T) {
 	type fields struct {
-		logger  zerolog.Logger
 		codec   codec.RTPCodec
 		streams map[string]types.StreamSinkManager
 	}

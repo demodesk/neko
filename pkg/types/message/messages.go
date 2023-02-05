@@ -11,8 +11,7 @@ import (
 /////////////////////////////
 
 type SystemWebRTC struct {
-	Videos    []string `json:"videos"`
-	VideoAuto bool     `json:"video_auto"`
+	Videos []string `json:"videos"`
 }
 
 type SystemInit struct {
@@ -49,9 +48,10 @@ type SystemDisconnect struct {
 type SignalProvide struct {
 	SDP        string            `json:"sdp"`
 	ICEServers []types.ICEServer `json:"iceservers"`
-	Video      string            `json:"video"` // TODO: Refactor.
-	Bitrate    int               `json:"bitrate"`
-	VideoAuto  bool              `json:"video_auto"`
+	// TODO: Use SignalVideo struct.
+	Video     string `json:"video"`
+	Bitrate   int    `json:"bitrate"`
+	VideoAuto bool   `json:"video_auto"`
 }
 
 type SignalCandidate struct {
