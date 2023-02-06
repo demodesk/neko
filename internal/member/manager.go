@@ -8,8 +8,9 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/demodesk/neko/internal/config"
-	"github.com/demodesk/neko/internal/member/dummy"
 	"github.com/demodesk/neko/internal/member/file"
+	"github.com/demodesk/neko/internal/member/multiuser"
+	"github.com/demodesk/neko/internal/member/noauth"
 	"github.com/demodesk/neko/internal/member/object"
 	"github.com/demodesk/neko/pkg/types"
 )
@@ -26,10 +27,12 @@ func New(sessions types.SessionManager, config *config.Member) *MemberManagerCtx
 		manager.provider = file.New(config.File)
 	case "object":
 		manager.provider = object.New(config.Object)
-	case "dummy":
+	case "multiuser":
+		manager.provider = multiuser.New(config.Multiuser)
+	case "noauth":
 		fallthrough
 	default:
-		manager.provider = dummy.New()
+		manager.provider = noauth.New()
 	}
 
 	return manager
@@ -75,6 +78,12 @@ func (manager *MemberManagerCtx) Insert(username string, password string, profil
 func (manager *MemberManagerCtx) Select(id string) (types.MemberProfile, error) {
 	manager.providerMu.Lock()
 	defer manager.providerMu.Unlock()
+
+	// get primarily from corresponding session, if exists
+	session, ok := manager.sessions.Get(id)
+	if ok {
+		return session.Profile(), nil
+	}
 
 	return manager.provider.Select(id)
 }

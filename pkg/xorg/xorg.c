@@ -71,6 +71,7 @@ void XButton(unsigned int button, int down) {
 
 static xkeyentry_t *xKeysHead = NULL;
 
+// add keycode->keysym mapping to list
 void XKeyEntryAdd(KeySym keysym, KeyCode keycode) {
   xkeyentry_t *entry = (xkeyentry_t *) malloc(sizeof(xkeyentry_t));
   if (entry == NULL)
@@ -82,6 +83,7 @@ void XKeyEntryAdd(KeySym keysym, KeyCode keycode) {
   xKeysHead = entry;
 }
 
+// get keycode for keysym from list
 KeyCode XKeyEntryGet(KeySym keysym) {
   xkeyentry_t *prev = NULL;
   xkeyentry_t *curr = xKeysHead;
@@ -147,6 +149,61 @@ KeyCode XkbKeysymToKeycode(Display* dpy, KeySym keysym) {
   return keycode;
 }
 
+// From https://github.com/TigerVNC/tigervnc/blob/a434ef3377943e89165ac13c537cd0f28be97f84/unix/x0vncserver/XDesktop.cxx#L401-L453
+KeyCode XkbAddKeyKeysym(Display* dpy, KeySym keysym) {
+  int types[1];
+  unsigned int key;
+  XkbDescPtr xkb;
+  XkbMapChangesRec changes;
+  KeySym *syms;
+  KeySym upper, lower;
+
+  xkb = XkbGetMap(dpy, XkbAllComponentsMask, XkbUseCoreKbd);
+
+  if (!xkb)
+    return 0;
+
+  for (key = xkb->max_key_code; key >= xkb->min_key_code; key--) {
+    if (XkbKeyNumGroups(xkb, key) == 0)
+      break;
+  }
+
+  // no free keycodes
+  if (key < xkb->min_key_code)
+    return 0;
+
+  // assign empty structure
+  changes = *(XkbMapChangesRec *) malloc(sizeof(XkbMapChangesRec));
+  for (int i = 0; i < sizeof(changes); i++) ((char *) &changes)[i] = 0;
+
+  XConvertCase(keysym, &lower, &upper);
+
+  if (upper == lower)
+    types[XkbGroup1Index] = XkbOneLevelIndex;
+  else
+    types[XkbGroup1Index] = XkbAlphabeticIndex;
+
+  XkbChangeTypesOfKey(xkb, key, 1, XkbGroup1Mask, types, &changes);
+
+  syms = XkbKeySymsPtr(xkb,key);
+  if (upper == lower)
+    syms[0] = keysym;
+  else {
+    syms[0] = lower;
+    syms[1] = upper;
+  }
+
+  changes.changed |= XkbKeySymsMask;
+  changes.first_key_sym = key;
+  changes.num_key_syms = 1;
+
+  if (XkbChangeMap(dpy, xkb, &changes)) {
+    return key;
+  }
+
+  return 0;
+}
+
 void XKey(KeySym keysym, int down) {
   if (keysym == 0)
     return;
@@ -157,20 +214,13 @@ void XKey(KeySym keysym, int down) {
   if (!down)
     keycode = XKeyEntryGet(keysym);
 
+  // Try to get keysyms from existing keycodes
   if (keycode == 0)
     keycode = XkbKeysymToKeycode(display, keysym);
 
   // Map non-existing keysyms to new keycodes
-  if (keycode == 0) {
-    int min, max, numcodes;
-    XDisplayKeycodes(display, &min, &max);
-    XGetKeyboardMapping(display, min, max-min, &numcodes);
-
-    keycode = (max-min+1)*numcodes;
-    KeySym keysym_list[numcodes];
-    for(int i=0;i<numcodes;i++) keysym_list[i] = keysym;
-    XChangeKeyboardMapping(display, keycode, numcodes, keysym_list, 1);
-  }
+  if (keycode == 0)
+    keycode = XkbAddKeyKeysym(display, keysym);
 
   if (down)
     XKeyEntryAdd(keysym, keycode);

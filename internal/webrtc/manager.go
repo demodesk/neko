@@ -114,21 +114,24 @@ func (manager *WebRTCManagerCtx) Start() {
 			manager.logger.Panic().Err(err).Msg("unable to setup ice TCP mux")
 		}
 
-		manager.tcpMux = webrtc.NewICETCPMux(logger.NewLogger("ice-tcp"), tcpListener, 32)
+		manager.tcpMux = ice.NewTCPMuxDefault(ice.TCPMuxParams{
+			Listener:        tcpListener,
+			Logger:          logger.NewLogger("ice-tcp"),
+			ReadBufferSize:  32,              // receiving channel size
+			WriteBufferSize: 4 * 1024 * 1024, // write buffer size, 4MB
+		})
 	}
 
 	// add UDP Mux listener
 	if manager.config.UDPMux > 0 {
-		udpListener, err := net.ListenUDP("udp", &net.UDPAddr{
-			IP:   net.IP{0, 0, 0, 0},
-			Port: manager.config.UDPMux,
-		})
+		var err error
+		manager.udpMux, err = ice.NewMultiUDPMuxFromPort(manager.config.UDPMux,
+			ice.UDPMuxFromPortWithLogger(logger.NewLogger("ice-udp")),
+		)
 
 		if err != nil {
 			manager.logger.Panic().Err(err).Msg("unable to setup ice UDP mux")
 		}
-
-		manager.udpMux = webrtc.NewICEUDPMux(logger.NewLogger("ice-udp"), udpListener)
 	}
 
 	manager.logger.Info().
@@ -172,6 +175,9 @@ func (manager *WebRTCManagerCtx) newPeerConnection(bitrate int, codecs []codec.R
 	settings.SetICETimeouts(disconnectedTimeout, failedTimeout, keepAliveInterval)
 	settings.SetNAT1To1IPs(manager.config.NAT1To1IPs, webrtc.ICECandidateTypeHost)
 	settings.SetLite(manager.config.ICELite)
+	// make sure server answer sdp setup as passive, to not force DTLS renegotiation
+	// otherwise iOS renegotiation fails with: Failed to set SSL role for the transport.
+	settings.SetAnsweringDTLSRole(webrtc.DTLSRoleServer)
 
 	var networkType []webrtc.NetworkType
 
@@ -583,7 +589,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int, 
 	})
 
 	dataChannel.OnMessage(func(message webrtc.DataChannelMessage) {
-		if err := manager.handle(message.Data, session); err != nil {
+		if err := manager.handle(message.Data, dataChannel, session); err != nil {
 			logger.Err(err).Msg("data handle failed")
 		}
 	})
@@ -649,13 +655,31 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int, 
 				manager.metrics.SetSctpTransportStats(session, data)
 			}
 
+			remoteCandidates := map[string]webrtc.ICECandidateStats{}
+			nominatedRemoteCandidates := map[string]struct{}{}
 			for _, entry := range stats {
 				// only remote ice candidate stats
 				candidate, ok := entry.(webrtc.ICECandidateStats)
 				if ok && candidate.Type == webrtc.StatsTypeRemoteCandidate {
-					manager.metrics.NewICECandidate(session, candidate.ID)
+					manager.metrics.NewICECandidate(session, candidate)
+					remoteCandidates[candidate.ID] = candidate
+				}
+
+				// only nominated ice candidate pair stats
+				pair, ok := entry.(webrtc.ICECandidatePairStats)
+				if ok && pair.Nominated {
+					nominatedRemoteCandidates[pair.RemoteCandidateID] = struct{}{}
 				}
 			}
+
+			iceCandidatesUsed := []webrtc.ICECandidateStats{}
+			for id := range nominatedRemoteCandidates {
+				if candidate, ok := remoteCandidates[id]; ok {
+					iceCandidatesUsed = append(iceCandidatesUsed, candidate)
+				}
+			}
+
+			manager.metrics.SetICECandidatesUsed(session, iceCandidatesUsed)
 		}
 	}()
 
