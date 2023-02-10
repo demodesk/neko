@@ -322,6 +322,10 @@ func (manager *StreamSinkManagerCtx) CreatePipeline() error {
 		manager.logger.Debug().Msg("started emitting samples")
 		defer manager.wg.Done()
 
+		// this does not need to be executed in a goroutine, because
+		// codec is not going to change during the lifetime of the manager
+		isVp8 := manager.codec.Name == codec.VP8().Name
+
 		for {
 			sample, ok := <-pipeline.Sample()
 			if !ok {
@@ -330,14 +334,8 @@ func (manager *StreamSinkManagerCtx) CreatePipeline() error {
 			}
 
 			// check if current sample is keyframe
-			var isKeyFrame bool
-			switch manager.codec.Name {
-			case codec.VP8().Name:
-				isKeyFrame = sample.Data[0]&0x01 == 0
-			case codec.H264().Name:
-				// TODO: check if this is correct
-				isKeyFrame = sample.Data[0]&0x1f == 0x07
-			}
+			isKeyFrame := isVp8 && sample.Data[0]&0x01 == 0
+			// TODO: Add support for other codecs.
 
 			manager.listenersMu.Lock()
 			if manager.waitForKf && isKeyFrame {
