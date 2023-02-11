@@ -210,7 +210,7 @@ func ChangeScreenSize(width int, height int, rate int16) (int, int, int16, error
 	}
 
 	// set new screen configuration
-	return 0, 0, 0, fmt.Errorf("failed to set screen configuration")
+	return 0, 0, 0, fmt.Errorf("unknown screen configuration %dx%d@%d", width, height, rate)
 }
 
 func GetScreenSize() types.ScreenSize {
