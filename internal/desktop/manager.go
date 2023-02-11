@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/demodesk/neko/internal/config"
+	"github.com/demodesk/neko/pkg/types"
 	"github.com/demodesk/neko/pkg/xevent"
 	"github.com/demodesk/neko/pkg/xorg"
 )
@@ -96,4 +97,19 @@ func (manager *DesktopManagerCtx) Shutdown() error {
 
 	xorg.DisplayClose()
 	return nil
+}
+
+// TODO: Screen configurations were previously limited by xorg configuration, but now we can
+// generate them on the fly. Now this only returns list of some predefined sizes.
+func (manager *DesktopManagerCtx) ScreenConfigurations() []types.ScreenSize {
+	return []types.ScreenSize{
+		{Width: 320, Height: 240, Rate: 25},
+		{Width: 640, Height: 480, Rate: 25},
+		{Width: 800, Height: 600, Rate: 25},
+		{Width: 1280, Height: 720, Rate: 25},
+		{Width: 1600, Height: 900, Rate: 25},
+		{Width: 1920, Height: 1080, Rate: 25},
+		{Width: 2560, Height: 1440, Rate: 25},
+		{Width: 3840, Height: 2160, Rate: 25},
+	}
 }

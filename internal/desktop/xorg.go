@@ -66,11 +66,6 @@ func (manager *DesktopManagerCtx) ResetKeys() {
 	xorg.ResetKeys()
 }
 
-// TODO: Remove this function.
-func (manager *DesktopManagerCtx) ScreenConfigurations() map[int]types.ScreenConfiguration {
-	return map[int]types.ScreenConfiguration{}
-}
-
 func (manager *DesktopManagerCtx) SetScreenSize(size types.ScreenSize) (types.ScreenSize, error) {
 	mu.Lock()
 	manager.emmiter.Emit("before_screen_size_change")

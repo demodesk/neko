@@ -52,18 +52,17 @@ func (h *RoomHandler) screenConfigurationChange(w http.ResponseWriter, r *http.R
 	return utils.HttpSuccess(w, data)
 }
 
+// TODO: remove.
 func (h *RoomHandler) screenConfigurationsList(w http.ResponseWriter, r *http.Request) error {
-	list := []ScreenConfigurationPayload{}
+	configurations := h.desktop.ScreenConfigurations()
 
-	ScreenConfigurations := h.desktop.ScreenConfigurations()
-	for _, size := range ScreenConfigurations {
-		for _, fps := range size.Rates {
-			list = append(list, ScreenConfigurationPayload{
-				Width:  size.Width,
-				Height: size.Height,
-				Rate:   fps,
-			})
-		}
+	list := make([]ScreenConfigurationPayload, 0, len(configurations))
+	for _, conf := range configurations {
+		list = append(list, ScreenConfigurationPayload{
+			Width:  conf.Width,
+			Height: conf.Height,
+			Rate:   conf.Rate,
+		})
 	}
 
 	return utils.HttpSuccess(w, list)

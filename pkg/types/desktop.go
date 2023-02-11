@@ -19,12 +19,6 @@ type ScreenSize struct {
 	Rate   int16
 }
 
-type ScreenConfiguration struct {
-	Width  int
-	Height int
-	Rates  map[int]int16
-}
-
 type KeyboardModifiers struct {
 	NumLock  *bool
 	CapsLock *bool
@@ -45,6 +39,7 @@ type DesktopManager interface {
 	Shutdown() error
 	OnBeforeScreenSizeChange(listener func())
 	OnAfterScreenSizeChange(listener func())
+	ScreenConfigurations() []ScreenSize
 
 	// xorg
 	Move(x, y int)
@@ -57,7 +52,6 @@ type DesktopManager interface {
 	ButtonPress(code uint32) error
 	KeyPress(codes ...uint32) error
 	ResetKeys()
-	ScreenConfigurations() map[int]ScreenConfiguration
 	SetScreenSize(ScreenSize) (ScreenSize, error)
 	GetScreenSize() ScreenSize
 	SetKeyboardMap(KeyboardMap) error
