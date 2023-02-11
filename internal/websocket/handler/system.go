@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"errors"
-
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
@@ -25,8 +23,10 @@ func (h *MessageHandlerCtx) systemInit(session types.Session) error {
 	}
 
 	size := h.desktop.GetScreenSize()
-	if size == nil {
-		return errors.New("could not get screen size")
+	screenSize := message.ScreenSize{
+		Width:  size.Width,
+		Height: size.Height,
+		Rate:   size.Rate,
 	}
 
 	sessions := map[string]message.SessionData{}
@@ -44,7 +44,7 @@ func (h *MessageHandlerCtx) systemInit(session types.Session) error {
 		message.SystemInit{
 			SessionId:         session.ID(),
 			ControlHost:       controlHost,
-			ScreenSize:        message.ScreenSize(*size),
+			ScreenSize:        screenSize,
 			Sessions:          sessions,
 			Settings:          h.sessions.Settings(),
 			ScreencastEnabled: h.capture.Screencast().Enabled(),

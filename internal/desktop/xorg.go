@@ -88,7 +88,7 @@ func (manager *DesktopManagerCtx) SetScreenSize(size types.ScreenSize) (types.Sc
 	}, err
 }
 
-func (manager *DesktopManagerCtx) GetScreenSize() *types.ScreenSize {
+func (manager *DesktopManagerCtx) GetScreenSize() types.ScreenSize {
 	return xorg.GetScreenSize()
 }
 

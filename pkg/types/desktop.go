@@ -59,7 +59,7 @@ type DesktopManager interface {
 	ResetKeys()
 	ScreenConfigurations() map[int]ScreenConfiguration
 	SetScreenSize(ScreenSize) (ScreenSize, error)
-	GetScreenSize() *ScreenSize
+	GetScreenSize() ScreenSize
 	SetKeyboardMap(KeyboardMap) error
 	GetKeyboardMap() (*KeyboardMap, error)
 	SetKeyboardModifiers(mod KeyboardModifiers)

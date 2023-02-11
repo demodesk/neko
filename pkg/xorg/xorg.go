@@ -198,14 +198,14 @@ func ChangeScreenSize(width int, height int, rate int16) (int, int, int16, error
 	return 0, 0, 0, fmt.Errorf("failed to set screen configuration")
 }
 
-func GetScreenSize() *types.ScreenSize {
+func GetScreenSize() types.ScreenSize {
 	mu.Lock()
 	defer mu.Unlock()
 
 	c_width, c_height, c_rate := C.int(0), C.int(0), C.short(0)
 	C.XGetScreenConfiguration(&c_width, &c_height, &c_rate)
 
-	return &types.ScreenSize{
+	return types.ScreenSize{
 		Width:  int(c_width),
 		Height: int(c_height),
 		Rate:   int16(c_rate),

@@ -20,12 +20,11 @@ type ScreenConfigurationPayload struct {
 func (h *RoomHandler) screenConfiguration(w http.ResponseWriter, r *http.Request) error {
 	size := h.desktop.GetScreenSize()
 
-	if size == nil {
-		return utils.HttpInternalServerError().WithInternalMsg("unable to get screen configuration")
-	}
-
-	payload := ScreenConfigurationPayload(*size)
-	return utils.HttpSuccess(w, payload)
+	return utils.HttpSuccess(w, ScreenConfigurationPayload{
+		Width:  size.Width,
+		Height: size.Height,
+		Rate:   size.Rate,
+	})
 }
 
 func (h *RoomHandler) screenConfigurationChange(w http.ResponseWriter, r *http.Request) error {
