@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"math"
 	"sync"
 	"time"
 	"unsafe"
@@ -28,19 +27,9 @@ const (
 	KbdModNumLock  KbdMod = 16
 )
 
-var ScreenConfigurations = make(map[int]types.ScreenConfiguration)
-
 var debounce_button = make(map[uint32]time.Time)
 var debounce_key = make(map[uint32]time.Time)
 var mu = sync.Mutex{}
-
-func GetScreenConfigurations() {
-	mu.Lock()
-	defer mu.Unlock()
-
-	ScreenConfigurations = make(map[int]types.ScreenConfiguration)
-	C.XGetScreenConfigurations()
-}
 
 func DisplayOpen(display string) bool {
 	mu.Lock()
@@ -180,36 +169,6 @@ func CheckKeys(duration time.Duration) {
 	}
 }
 
-// set screen configuration from saved configuration
-func changeScreenSize(width int, height int, rate int16) (int, int, int16, error) {
-	for index, size := range ScreenConfigurations {
-		if size.Width != width || size.Height != height {
-			continue
-		}
-
-		fmt.Printf("set screen configuration %dx%d@%d with index %d, rates %d\n", width, height, rate, index, len(size.Rates))
-		nearestFps, diff := int16(0), float64(0)
-		for _, fps := range size.Rates {
-			if nearestFps == 0 || math.Abs(float64(fps)-float64(rate)) < diff {
-				nearestFps = fps
-				diff = math.Abs(float64(fps) - float64(rate))
-				fmt.Printf("adding nearest fps %d with diff %f\n", nearestFps, diff)
-			}
-		}
-
-		if nearestFps != 0 && diff < 10 {
-			C.XSetScreenConfiguration(C.int(index), C.short(nearestFps))
-			return int(size.Width), int(size.Height), nearestFps, nil
-		} else if len(size.Rates) == 1 && nearestFps == 0 {
-			// if there is only one rate with 0 fps, we probably do not have libxcvt installed
-			C.XSetScreenConfiguration(C.int(index), 0)
-			return int(size.Width), int(size.Height), 0, nil
-		}
-	}
-
-	return 0, 0, 0, fmt.Errorf("unknown screen configuration %dx%d@%d", width, height, rate)
-}
-
 // set screen configuration, create new one if not exists
 func ChangeScreenSize(width int, height int, rate int16) (int, int, int16, error) {
 	mu.Lock()
@@ -219,38 +178,38 @@ func ChangeScreenSize(width int, height int, rate int16) (int, int, int16, error
 	width = width - (width % 8)
 	height = height - (height % 8)
 
+	// convert variables to C types
+	c_width, c_height, c_rate := C.int(width), C.int(height), C.short(rate)
+
 	// if screen configuration already exists, just set it
-	if w, h, r, err := changeScreenSize(width, height, rate); err == nil {
-		return w, h, r, nil
+	if status := C.XSetScreenConfiguration(c_width, c_height, &c_rate); status == C.RRSetConfigSuccess {
+		return width, height, int16(c_rate), nil
 	}
 
 	// create new screen configuration
-	C.XCreateScreenMode(C.int(width), C.int(height), C.short(rate))
+	C.XCreateScreenMode(c_width, c_height, c_rate)
 
-	// get latest screen configurations
-	ScreenConfigurations = make(map[int]types.ScreenConfiguration)
-	C.XGetScreenConfigurations()
+	// screen configuration should exist now, set it
+	if status := C.XSetScreenConfiguration(c_width, c_height, &c_rate); status == C.RRSetConfigSuccess {
+		return width, height, int16(c_rate), nil
+	}
 
 	// set new screen configuration
-	return changeScreenSize(width, height, rate)
+	return 0, 0, 0, fmt.Errorf("failed to set screen configuration")
 }
 
 func GetScreenSize() *types.ScreenSize {
 	mu.Lock()
 	defer mu.Unlock()
 
-	index := int(C.XGetScreenSize())
-	rate := int16(C.XGetScreenRate())
+	c_width, c_height, c_rate := C.int(0), C.int(0), C.short(0)
+	C.XGetScreenConfiguration(&c_width, &c_height, &c_rate)
 
-	if conf, ok := ScreenConfigurations[index]; ok {
-		return &types.ScreenSize{
-			Width:  conf.Width,
-			Height: conf.Height,
-			Rate:   rate,
-		}
+	return &types.ScreenSize{
+		Width:  int(c_width),
+		Height: int(c_height),
+		Rate:   int16(c_rate),
 	}
-
-	return nil
 }
 
 func SetKeyboardModifier(mod KbdMod, active bool) {
@@ -335,19 +294,4 @@ func GetScreenshotImage() *image.RGBA {
 	}
 
 	return img
-}
-
-//export goCreateScreenSize
-func goCreateScreenSize(index C.int, width C.int, height C.int, mwidth C.int, mheight C.int) {
-	ScreenConfigurations[int(index)] = types.ScreenConfiguration{
-		Width:  int(width),
-		Height: int(height),
-		Rates:  make(map[int]int16),
-	}
-}
-
-//export goSetScreenRates
-func goSetScreenRates(index C.int, rate_index C.int, rateC C.short) {
-	rate := int16(rateC)
-	ScreenConfigurations[int(index)].Rates[int(rate_index)] = rate
 }

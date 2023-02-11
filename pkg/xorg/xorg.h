@@ -13,9 +13,6 @@
 // for computing xrandr modelines at runtime
 #include <libxcvt/libxcvt.h>
 
-extern void goCreateScreenSize(int index, int width, int height, int mwidth, int mheight);
-extern void goSetScreenRates(int index, int rate_index, short rate);
-
 Display *getXDisplay(void);
 int XDisplayOpen(char *input);
 void XDisplayClose(void);
@@ -36,10 +33,8 @@ static KeyCode XKeyEntryGet(KeySym keysym);
 static KeyCode XkbKeysymToKeycode(Display *dpy, KeySym keysym);
 void XKey(KeySym keysym, int down);
 
-void XGetScreenConfigurations();
-void XSetScreenConfiguration(int index, short rate);
-int XGetScreenSize();
-short XGetScreenRate();
+Status XSetScreenConfiguration(int width, int height, short *rate);
+void XGetScreenConfiguration(int *width, int *height, short *rate);
 void XCreateScreenMode(int width, int height, short rate);
 XRRModeInfo XCreateScreenModeInfo(int hdisplay, int vdisplay, short vrefresh);
 

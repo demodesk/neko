@@ -38,8 +38,6 @@ func (manager *DesktopManagerCtx) Start() {
 		manager.logger.Panic().Str("display", manager.config.Display).Msg("unable to open display")
 	}
 
-	xorg.GetScreenConfigurations()
-
 	width, height, rate, err := xorg.ChangeScreenSize(manager.config.ScreenWidth, manager.config.ScreenHeight, manager.config.ScreenRate)
 	manager.logger.Err(err).
 		Str("screen_size", fmt.Sprintf("%dx%d@%d", width, height, rate)).

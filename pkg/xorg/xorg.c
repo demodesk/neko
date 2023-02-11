@@ -229,7 +229,7 @@ void XKey(KeySym keysym, int down) {
   XSync(display, 0);
 }
 
-void XGetScreenConfigurations() {
+Status XSetScreenConfiguration(int width, int height, short *rate) {
   Display *display = getXDisplay();
   Window root = RootWindow(display, 0);
   XRRScreenConfiguration *conf = XRRGetScreenInfo(display, root);
@@ -238,51 +238,71 @@ void XGetScreenConfigurations() {
   int num_sizes;
   xrrs = XRRConfigSizes(conf, &num_sizes);
 
+  int size_index = -1;
   for (int i = 0; i < num_sizes; i++) {
-    short *rates;
-    int num_rates;
-
-    goCreateScreenSize(i, xrrs[i].width, xrrs[i].height, xrrs[i].mwidth, xrrs[i].mheight);
-    rates = XRRConfigRates(conf, i, &num_rates);
-    for (int j = 0; j < num_rates; j++) {
-      goSetScreenRates(i, j, rates[j]);
+    if (xrrs[i].width == width && xrrs[i].height == height) {
+      size_index = i;
+      break;
     }
   }
+
+  // if we cannot find the size
+  if (size_index == -1) {
+    return RRSetConfigFailed;
+  }
+
+  short current_rate = 0;
+  if (rate != NULL) {
+    short *rates;
+    int num_rates;
+    rates = XRRConfigRates(conf, size_index, &num_rates);
+
+    // try to find the nearest rate
+    short nearest_rate = 0;
+    float diff = 0;
+    for (int i = 0; i < num_rates; i++) {
+      if (nearest_rate == 0 || abs(rates[i] - *rate) < diff) {
+        nearest_rate = rates[i];
+        diff = abs(rates[i] - *rate);
+      }
+    }
+
+    if (nearest_rate != 0 && diff < 10) {
+      current_rate = nearest_rate;
+    }
+
+    *rate = current_rate;
+  }
+
+  Status status;
+  status = XRRSetScreenConfigAndRate(display, conf, root, size_index, RR_Rotate_0, current_rate, CurrentTime);
+
+  XRRFreeScreenConfigInfo(conf);
+  return status;
 }
 
-void XSetScreenConfiguration(int index, short rate) {
+void XGetScreenConfiguration(int *width, int *height, short *rate) {
   Display *display = getXDisplay();
   Window root = RootWindow(display, 0);
   XRRScreenConfiguration *conf = XRRGetScreenInfo(display, root);
 
-  XRRSetScreenConfigAndRate(display, conf, root, index, RR_Rotate_0, rate, CurrentTime);
+  Rotation current_rotation;
+  SizeID current_size_id = XRRConfigCurrentConfiguration(conf, &current_rotation);
+
+  XRRScreenSize *xrrs;
+  int num_sizes;
+  xrrs = XRRConfigSizes(conf, &num_sizes);
+
+  // if we cannot find the size
+  if (current_size_id >= num_sizes) {
+    return;
+  }
+
+  *width = xrrs[current_size_id].width;
+  *height = xrrs[current_size_id].height;
+  *rate = XRRConfigCurrentRate(conf);
+
   XRRFreeScreenConfigInfo(conf);
-}
-
-int XGetScreenSize() {
-  Display *display = getXDisplay();
-  Window root = RootWindow(display, 0);
-  XRRScreenConfiguration *conf = XRRGetScreenInfo(display, root);
-
-  int mode;
-  Rotation original_rotation;
-
-  mode = XRRConfigCurrentConfiguration(conf, &original_rotation);
-  XRRFreeScreenConfigInfo(conf);
-
-  return mode;
-}
-
-short XGetScreenRate() {
-  Display *display = getXDisplay();
-  Window root = RootWindow(display, 0);
-  XRRScreenConfiguration *conf = XRRGetScreenInfo(display, root);
-
-  short rate;
-  rate = XRRConfigCurrentRate(conf);
-  XRRFreeScreenConfigInfo(conf);
-
-  return rate;
 }
 
 // Inspired by https://github.com/raboof/xrandr/blob/master/xrandr.c
@@ -301,7 +321,6 @@ void XCreateScreenMode(int width, int height, short rate) {
   // create new mode
   XRRCreateMode(display, root, &mode);
   XSync(display, 0);
-
 
   // find newly created mode in resources
   RRMode mode_id;

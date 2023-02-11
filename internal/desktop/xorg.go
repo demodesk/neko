@@ -66,8 +66,9 @@ func (manager *DesktopManagerCtx) ResetKeys() {
 	xorg.ResetKeys()
 }
 
+// TODO: Remove this function.
 func (manager *DesktopManagerCtx) ScreenConfigurations() map[int]types.ScreenConfiguration {
-	return xorg.ScreenConfigurations
+	return map[int]types.ScreenConfiguration{}
 }
 
 func (manager *DesktopManagerCtx) SetScreenSize(size types.ScreenSize) (types.ScreenSize, error) {
