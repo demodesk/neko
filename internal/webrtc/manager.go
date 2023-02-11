@@ -625,12 +625,14 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int, 
 			})
 	})
 
-	videoTrack.OnRTCP(func(p rtcp.Packet) {
-		if rtcpPacket, ok := p.(*rtcp.ReceiverReport); ok {
-			l := len(rtcpPacket.Reports)
-			if l > 0 {
-				// use only last report
-				manager.metrics.SetReceiverReport(session, rtcpPacket.Reports[l-1])
+	videoTrack.OnRTCP(func(packets []rtcp.Packet) {
+		for _, p := range packets {
+			if rtcpPacket, ok := p.(*rtcp.ReceiverReport); ok {
+				l := len(rtcpPacket.Reports)
+				if l > 0 {
+					// use only last report
+					manager.metrics.SetReceiverReport(session, rtcpPacket.Reports[l-1])
+				}
 			}
 		}
 	})
