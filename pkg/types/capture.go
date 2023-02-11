@@ -17,10 +17,9 @@ var (
 )
 
 type Sample struct {
-	Data     []byte
-	Duration time.Duration
-	// for video this is usualy keyframe
-	IsDeltaUnit bool
+	Data      []byte
+	Duration  time.Duration
+	DeltaUnit bool // this unit cannot be decoded independently.
 }
 
 type Receiver interface {

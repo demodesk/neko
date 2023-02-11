@@ -12,7 +12,7 @@ typedef struct GstPipelineCtx {
   GstElement *appsrc;
 } GstPipelineCtx;
 
-extern void goHandlePipelineBuffer(int pipelineId, void *buffer, int bufferLen, guint64 duration, gboolean isDeltaUnit);
+extern void goHandlePipelineBuffer(int pipelineId, void *buffer, int bufferLen, guint64 duration, gboolean deltaUnit);
 extern void goPipelineLog(int pipelineId, char *level, char *msg);
 
 GstPipelineCtx *gstreamer_pipeline_create(char *pipelineStr, int pipelineId, GError **error);
