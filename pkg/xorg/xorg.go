@@ -209,7 +209,6 @@ func ChangeScreenSize(width int, height int, rate int16) (int, int, int16, error
 		return width, height, int16(c_rate), nil
 	}
 
-	// set new screen configuration
 	return 0, 0, 0, fmt.Errorf("unknown screen configuration %dx%d@%d", width, height, rate)
 }
 
