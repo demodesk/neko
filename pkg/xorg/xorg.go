@@ -27,9 +27,24 @@ const (
 	KbdModNumLock  KbdMod = 16
 )
 
+type ScreenConfiguration struct {
+	Width  int
+	Height int
+	Rates  map[int]int16
+}
+
+var ScreenConfigurations = make(map[int]ScreenConfiguration)
+
 var debounce_button = make(map[uint32]time.Time)
 var debounce_key = make(map[uint32]time.Time)
 var mu = sync.Mutex{}
+
+func GetScreenConfigurations() {
+	mu.Lock()
+	defer mu.Unlock()
+
+	C.XGetScreenConfigurations()
+}
 
 func DisplayOpen(display string) bool {
 	mu.Lock()
@@ -294,4 +309,18 @@ func GetScreenshotImage() *image.RGBA {
 	}
 
 	return img
+}
+
+//export goCreateScreenSize
+func goCreateScreenSize(index C.int, width C.int, height C.int, mwidth C.int, mheight C.int) {
+	ScreenConfigurations[int(index)] = ScreenConfiguration{
+		Width:  int(width),
+		Height: int(height),
+		Rates:  make(map[int]int16),
+	}
+}
+
+//export goSetScreenRates
+func goSetScreenRates(index C.int, rate_index C.int, rateC C.short) {
+	ScreenConfigurations[int(index)].Rates[int(rate_index)] = int16(rateC)
 }

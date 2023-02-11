@@ -305,6 +305,25 @@ void XGetScreenConfiguration(int *width, int *height, short *rate) {
   XRRFreeScreenConfigInfo(conf);
 }
 
+void XGetScreenConfigurations() {
+  Display *display = getXDisplay();
+  Window root = RootWindow(display, 0);
+  XRRScreenSize *xrrs;
+  int num_sizes;
+
+  xrrs = XRRSizes(display, 0, &num_sizes);
+  for (int i = 0; i < num_sizes; i++) {
+    short *rates;
+    int num_rates;
+
+    goCreateScreenSize(i, xrrs[i].width, xrrs[i].height, xrrs[i].mwidth, xrrs[i].mheight);
+    rates = XRRRates(display, 0, i, &num_rates);
+    for (int j = 0; j < num_rates; j++) {
+      goSetScreenRates(i, j, rates[j]);
+    }
+  }
+}
+
 // Inspired by https://github.com/raboof/xrandr/blob/master/xrandr.c
 void XCreateScreenMode(int width, int height, short rate) {
   Display *display = getXDisplay();

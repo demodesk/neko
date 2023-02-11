@@ -66,6 +66,25 @@ func (manager *DesktopManagerCtx) ResetKeys() {
 	xorg.ResetKeys()
 }
 
+func (manager *DesktopManagerCtx) ScreenConfigurations() []types.ScreenSize {
+	var configs []types.ScreenSize
+	for _, size := range xorg.ScreenConfigurations {
+		for _, fps := range size.Rates {
+			// filter out all irrelevant rates
+			if fps > 60 || (fps > 30 && fps%10 != 0) {
+				continue
+			}
+
+			configs = append(configs, types.ScreenSize{
+				Width:  size.Width,
+				Height: size.Height,
+				Rate:   fps,
+			})
+		}
+	}
+	return configs
+}
+
 func (manager *DesktopManagerCtx) SetScreenSize(size types.ScreenSize) (types.ScreenSize, error) {
 	mu.Lock()
 	manager.emmiter.Emit("before_screen_size_change")
