@@ -53,8 +53,9 @@ func streamSinkNew(c codec.RTPCodec, pipelineFn func() (string, error), id strin
 		getBitrate: getBitrate,
 
 		// TODO: make this configurable, currently
-		// only VP8 can detect and emit keyframes.
-		waitForKf: c.Name == codec.VP8().Name,
+		// only VP8 and H264 can detect and emit keyframes.
+		waitForKf: c.Name == codec.VP8().Name ||
+			c.Name == codec.H264().Name,
 
 		logger:     logger,
 		codec:      c,
@@ -325,6 +326,7 @@ func (manager *StreamSinkManagerCtx) CreatePipeline() error {
 		// this does not need to be executed in a goroutine, because
 		// codec is not going to change during the lifetime of the manager
 		isVp8 := manager.codec.Name == codec.VP8().Name
+		isH264 := manager.codec.Name == codec.H264().Name
 
 		for {
 			sample, ok := <-pipeline.Sample()
@@ -334,7 +336,9 @@ func (manager *StreamSinkManagerCtx) CreatePipeline() error {
 			}
 
 			// check if current sample is keyframe
-			isKeyFrame := isVp8 && sample.Data[0]&0x01 == 0
+			isKeyFrame := (isVp8 && sample.Data[0]&0x01 == 0) ||
+				// TODO: This might not work for all H264 streams.
+				(isH264 && sample.Data[5] == 0x10 && sample.Data[10] == 0x67)
 			// TODO: Add support for other codecs.
 
 			manager.listenersMu.Lock()
