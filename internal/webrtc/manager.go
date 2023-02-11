@@ -213,9 +213,13 @@ func (manager *WebRTCManagerCtx) newPeerConnection(bitrate int, codecs []codec.R
 
 	congestionController, err := cc.NewInterceptor(func() (cc.BandwidthEstimator, error) {
 		if bitrate == 0 {
-			bitrate = 1000000
+			bitrate = 1_000_000
 		}
-		return gcc.NewSendSideBWE(gcc.SendSideBWEInitialBitrate(bitrate))
+
+		return gcc.NewSendSideBWE(
+			gcc.SendSideBWEInitialBitrate(bitrate),
+			gcc.SendSideBWEPacer(gcc.NewNoOpPacer()),
+		)
 	})
 	if err != nil {
 		return nil, nil, err
