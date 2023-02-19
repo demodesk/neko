@@ -60,10 +60,6 @@ func NewTrack(logger zerolog.Logger, codec codec.RTPCodec, connection *webrtc.Pe
 	}
 
 	t.listener = func(sample types.Sample) {
-		if t.paused {
-			return
-		}
-
 		err := track.WriteSample(media.Sample{
 			Data:     sample.Data,
 			Duration: sample.Duration,
@@ -131,13 +127,39 @@ func (t *Track) RemoveStream() {
 	t.streamMu.Lock()
 	defer t.streamMu.Unlock()
 
-	if t.stream != nil {
-		_ = t.stream.RemoveListener(&t.listener)
-		t.stream = nil
+	// if there is no stream, do nothing
+	if t.stream == nil {
+		return
 	}
+
+	err := t.stream.RemoveListener(&t.listener)
+	if err != nil {
+		t.logger.Warn().Err(err).Msg("failed to remove listener from stream")
+	}
+
+	t.stream = nil
 }
 
 func (t *Track) SetPaused(paused bool) {
+	t.streamMu.Lock()
+	defer t.streamMu.Unlock()
+
+	// if there is no state change or no stream, do nothing
+	if t.paused == paused || t.stream == nil {
+		return
+	}
+
+	var err error
+	if paused {
+		err = t.stream.RemoveListener(&t.listener)
+	} else {
+		err = t.stream.AddListener(&t.listener)
+	}
+	if err != nil {
+		t.logger.Warn().Err(err).Msg("failed to change listener state")
+		return
+	}
+
 	t.paused = paused
 }
 
