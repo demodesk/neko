@@ -16,13 +16,14 @@ import (
 )
 
 type Track struct {
-	logger      zerolog.Logger
-	track       *webrtc.TrackLocalStaticSample
-	paused      bool
+	logger   zerolog.Logger
+	track    *webrtc.TrackLocalStaticSample
+	listener func(sample types.Sample)
+
 	videoAuto   bool
 	videoAutoMu sync.RWMutex
-	listener    func(sample types.Sample)
 
+	paused   bool
 	stream   types.StreamSinkManager
 	streamMu sync.Mutex
 
