@@ -109,6 +109,12 @@ func (t *Track) SetStream(stream types.StreamSinkManager) (bool, error) {
 		return false, nil
 	}
 
+	// if paused, we switch the stream but don't add the listener
+	if t.paused {
+		t.stream = stream
+		return true, nil
+	}
+
 	var err error
 	if t.stream != nil {
 		err = t.stream.MoveListenerTo(&t.listener, stream)
@@ -120,7 +126,6 @@ func (t *Track) SetStream(stream types.StreamSinkManager) (bool, error) {
 	}
 
 	t.stream = stream
-
 	return true, nil
 }
 
@@ -128,8 +133,8 @@ func (t *Track) RemoveStream() {
 	t.streamMu.Lock()
 	defer t.streamMu.Unlock()
 
-	// if there is no stream, do nothing
-	if t.stream == nil {
+	// if there is no stream, or paused, do nothing
+	if t.stream == nil || t.paused {
 		return
 	}
 
