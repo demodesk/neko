@@ -316,6 +316,11 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int, 
 		return nil, err
 	}
 
+	// if estimator is disabled, disable video auto
+	if !manager.config.EstimatorEnabled {
+		videoAuto = false
+	}
+
 	// video track
 	videoTrack, err := NewTrack(logger, videoCodec, connection, WithVideoAuto(videoAuto))
 	if err != nil {
