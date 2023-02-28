@@ -32,8 +32,8 @@ type StreamSinkManagerCtx struct {
 	pipelineMu sync.Mutex
 	pipelineFn func() (string, error)
 
-	listeners   map[uintptr]*func(sample types.Sample)
-	listenersKf map[uintptr]*func(sample types.Sample) // keyframe lobby
+	listeners   map[uintptr]types.SampleListener
+	listenersKf map[uintptr]types.SampleListener // keyframe lobby
 	listenersMu sync.Mutex
 
 	// metrics
@@ -58,8 +58,8 @@ func streamSinkNew(c codec.RTPCodec, pipelineFn func() (string, error), id strin
 		codec:      c,
 		pipelineFn: pipelineFn,
 
-		listeners:   map[uintptr]*func(sample types.Sample){},
-		listenersKf: map[uintptr]*func(sample types.Sample){},
+		listeners:   map[uintptr]types.SampleListener{},
+		listenersKf: map[uintptr]types.SampleListener{},
 
 		// metrics
 		currentListeners: promauto.NewGauge(prometheus.GaugeOpts{
@@ -161,7 +161,7 @@ func (manager *StreamSinkManagerCtx) stop() {
 	}
 }
 
-func (manager *StreamSinkManagerCtx) addListener(listener *func(sample types.Sample)) {
+func (manager *StreamSinkManagerCtx) addListener(listener types.SampleListener) {
 	ptr := reflect.ValueOf(listener).Pointer()
 	emitKeyframe := false
 
@@ -186,7 +186,7 @@ func (manager *StreamSinkManagerCtx) addListener(listener *func(sample types.Sam
 	}
 }
 
-func (manager *StreamSinkManagerCtx) removeListener(listener *func(sample types.Sample)) {
+func (manager *StreamSinkManagerCtx) removeListener(listener types.SampleListener) {
 	ptr := reflect.ValueOf(listener).Pointer()
 
 	manager.listenersMu.Lock()
@@ -198,7 +198,7 @@ func (manager *StreamSinkManagerCtx) removeListener(listener *func(sample types.
 	manager.currentListeners.Set(float64(manager.ListenersCount()))
 }
 
-func (manager *StreamSinkManagerCtx) AddListener(listener *func(sample types.Sample)) error {
+func (manager *StreamSinkManagerCtx) AddListener(listener types.SampleListener) error {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
 
@@ -217,7 +217,7 @@ func (manager *StreamSinkManagerCtx) AddListener(listener *func(sample types.Sam
 	return nil
 }
 
-func (manager *StreamSinkManagerCtx) RemoveListener(listener *func(sample types.Sample)) error {
+func (manager *StreamSinkManagerCtx) RemoveListener(listener types.SampleListener) error {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
 
@@ -236,7 +236,7 @@ func (manager *StreamSinkManagerCtx) RemoveListener(listener *func(sample types.
 
 // moving listeners between streams ensures, that target pipeline is running
 // before listener is added, and stops source pipeline if there are 0 listeners
-func (manager *StreamSinkManagerCtx) MoveListenerTo(listener *func(sample types.Sample), stream types.StreamSinkManager) error {
+func (manager *StreamSinkManagerCtx) MoveListenerTo(listener types.SampleListener, stream types.StreamSinkManager) error {
 	if listener == nil {
 		return errors.New("listener cannot be nil")
 	}
@@ -330,20 +330,7 @@ func (manager *StreamSinkManagerCtx) CreatePipeline() error {
 				return
 			}
 
-			manager.listenersMu.Lock()
-			// if is not delta unit -> it can be decoded independently -> it is a keyframe
-			if manager.waitForKf && !sample.DeltaUnit && len(manager.listenersKf) > 0 {
-				// if current sample is a keyframe, move listeners from
-				// keyframe lobby to actual listeners map and clear lobby
-				for k, v := range manager.listenersKf {
-					manager.listeners[k] = v
-				}
-				manager.listenersKf = make(map[uintptr]*func(sample types.Sample))
-			}
-			for _, emit := range manager.listeners {
-				(*emit)(sample)
-			}
-			manager.listenersMu.Unlock()
+			manager.onSample(sample)
 		}
 	}()
 
@@ -351,6 +338,25 @@ func (manager *StreamSinkManagerCtx) CreatePipeline() error {
 	manager.pipelinesActive.Set(1)
 
 	return nil
+}
+
+func (manager *StreamSinkManagerCtx) onSample(sample types.Sample) {
+	manager.listenersMu.Lock()
+	defer manager.listenersMu.Unlock()
+
+	// if is not delta unit -> it can be decoded independently -> it is a keyframe
+	if manager.waitForKf && !sample.DeltaUnit && len(manager.listenersKf) > 0 {
+		// if current sample is a keyframe, move listeners from
+		// keyframe lobby to actual listeners map and clear lobby
+		for k, v := range manager.listenersKf {
+			manager.listeners[k] = v
+		}
+		manager.listenersKf = make(map[uintptr]types.SampleListener)
+	}
+
+	for _, emit := range manager.listeners {
+		emit.Sample() <- sample
+	}
 }
 
 func (manager *StreamSinkManagerCtx) DestroyPipeline() {

@@ -22,6 +22,10 @@ type Sample struct {
 	DeltaUnit bool // this unit cannot be decoded independently.
 }
 
+type SampleListener interface {
+	Sample() chan Sample
+}
+
 type Receiver interface {
 	SetStream(stream StreamSinkManager) (changed bool, err error)
 	RemoveStream()
@@ -60,9 +64,9 @@ type StreamSinkManager interface {
 	Codec() codec.RTPCodec
 	Bitrate() int
 
-	AddListener(listener *func(sample Sample)) error
-	RemoveListener(listener *func(sample Sample)) error
-	MoveListenerTo(listener *func(sample Sample), targetStream StreamSinkManager) error
+	AddListener(listener SampleListener) error
+	RemoveListener(listener SampleListener) error
+	MoveListenerTo(listener SampleListener, targetStream StreamSinkManager) error
 
 	ListenersCount() int
 	Started() bool

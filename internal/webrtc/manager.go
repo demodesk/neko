@@ -570,7 +570,8 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int, 
 			if err = video.RemoveReceiver(videoTrack); err != nil {
 				logger.Err(err).Msg("failed to remove video receiver")
 			}
-			audioTrack.RemoveStream()
+			audioTrack.Shutdown()
+			videoTrack.Shutdown()
 		}
 
 		manager.metrics.SetState(session, state)
