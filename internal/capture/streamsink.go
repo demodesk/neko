@@ -38,6 +38,7 @@ type StreamSinkManagerCtx struct {
 
 	// metrics
 	currentListeners prometheus.Gauge
+	totalBytes       prometheus.Counter
 	pipelinesCounter prometheus.Counter
 	pipelinesActive  prometheus.Gauge
 }
@@ -67,6 +68,17 @@ func streamSinkNew(c codec.RTPCodec, pipelineFn func() (string, error), id strin
 			Namespace: "neko",
 			Subsystem: "capture",
 			Help:      "Current number of listeners for a pipeline.",
+			ConstLabels: map[string]string{
+				"video_id":   id,
+				"codec_name": c.Name,
+				"codec_type": c.Type.String(),
+			},
+		}),
+		totalBytes: promauto.NewGauge(prometheus.GaugeOpts{
+			Name:      "streamsink_bytes",
+			Namespace: "neko",
+			Subsystem: "capture",
+			Help:      "Total number of bytes created by the pipeline.",
 			ConstLabels: map[string]string{
 				"video_id":   id,
 				"codec_name": c.Name,
@@ -343,6 +355,9 @@ func (manager *StreamSinkManagerCtx) CreatePipeline() error {
 func (manager *StreamSinkManagerCtx) onSample(sample types.Sample) {
 	manager.listenersMu.Lock()
 	defer manager.listenersMu.Unlock()
+
+	size := len(sample.Data)
+	manager.totalBytes.Add(float64(size))
 
 	// if is not delta unit -> it can be decoded independently -> it is a keyframe
 	if manager.waitForKf && !sample.DeltaUnit && len(manager.listenersKf) > 0 {
