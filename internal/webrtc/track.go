@@ -18,6 +18,8 @@ import (
 type Track struct {
 	logger zerolog.Logger
 	track  *webrtc.TrackLocalStaticSample
+
+	rtcpCh chan []rtcp.Packet
 	sample chan types.Sample
 
 	videoAuto   bool
@@ -26,9 +28,6 @@ type Track struct {
 	paused   bool
 	stream   types.StreamSinkManager
 	streamMu sync.Mutex
-
-	onRtcp   func([]rtcp.Packet)
-	onRtcpMu sync.RWMutex
 
 	bitrateChange func(int) (bool, error)
 	videoChange   func(string) (bool, error)
@@ -39,6 +38,12 @@ type option func(*Track)
 func WithVideoAuto(auto bool) option {
 	return func(t *Track) {
 		t.videoAuto = auto
+	}
+}
+
+func WithRtcpChan(rtcp chan []rtcp.Packet) option {
+	return func(t *Track) {
+		t.rtcpCh = rtcp
 	}
 }
 
@@ -54,6 +59,7 @@ func NewTrack(logger zerolog.Logger, codec codec.RTPCodec, connection *webrtc.Pe
 	t := &Track{
 		logger: logger,
 		track:  track,
+		rtcpCh: make(chan []rtcp.Packet),
 		sample: make(chan types.Sample),
 	}
 
@@ -89,11 +95,9 @@ func (t *Track) rtcpReader(sender *webrtc.RTPSender) {
 			continue
 		}
 
-		t.onRtcpMu.RLock()
-		if t.onRtcp != nil {
-			go t.onRtcp(packets)
+		if t.rtcpCh != nil {
+			t.rtcpCh <- packets
 		}
-		t.onRtcpMu.RUnlock()
 	}
 }
 
@@ -185,11 +189,8 @@ func (t *Track) SetPaused(paused bool) {
 	t.paused = paused
 }
 
-func (t *Track) OnRTCP(f func([]rtcp.Packet)) {
-	t.onRtcpMu.Lock()
-	defer t.onRtcpMu.Unlock()
-
-	t.onRtcp = f
+func (t *Track) Sample() chan types.Sample {
+	return t.sample
 }
 
 func (t *Track) SetBitrate(bitrate int) (bool, error) {
@@ -226,8 +227,4 @@ func (t *Track) VideoAuto() bool {
 	t.videoAutoMu.RLock()
 	defer t.videoAutoMu.RUnlock()
 	return t.videoAuto
-}
-
-func (t *Track) Sample() chan types.Sample {
-	return t.sample
 }
