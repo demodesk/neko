@@ -87,11 +87,12 @@ func (t *Track) rtcpReader(sender *webrtc.RTPSender) {
 	for {
 		packets, _, err := sender.ReadRTCP()
 		if err != nil {
-			if err == io.EOF || err == io.ErrClosedPipe {
+			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) {
+				t.logger.Debug().Msg("track rtcp reader closed")
 				return
 			}
 
-			t.logger.Err(err).Msg("RTCP read error")
+			t.logger.Warn().Err(err).Msg("failed to read track rtcp")
 			continue
 		}
 
