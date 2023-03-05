@@ -210,6 +210,7 @@ func goHandlePipelineBuffer(pipelineID C.int, buf unsafe.Pointer, bufLen C.int, 
 	if ok {
 		pipeline.sample <- types.Sample{
 			Data:      C.GoBytes(buf, bufLen),
+			Length:    int(bufLen),
 			Duration:  time.Duration(duration),
 			DeltaUnit: deltaUnit == C.TRUE,
 		}

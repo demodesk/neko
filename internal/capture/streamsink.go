@@ -4,6 +4,8 @@ import (
 	"errors"
 	"reflect"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -22,6 +24,9 @@ type StreamSinkManagerCtx struct {
 	id         string
 	getBitrate func() (int, error)
 	waitForKf  bool // wait for a keyframe before sending samples
+
+	bitrate  uint64 // atomic
+	brDeltas map[int]float64
 
 	logger zerolog.Logger
 	mu     sync.Mutex
@@ -54,6 +59,8 @@ func streamSinkNew(c codec.RTPCodec, pipelineFn func() (string, error), id strin
 		getBitrate: getBitrate,
 		// only wait for keyframes if the codec is video
 		waitForKf: c.IsVideo(),
+
+		brDeltas: map[int]float64{},
 
 		logger:     logger,
 		codec:      c,
@@ -135,6 +142,14 @@ func (manager *StreamSinkManagerCtx) ID() string {
 }
 
 func (manager *StreamSinkManagerCtx) Bitrate() int {
+	// TODO: fix bitrate switching calculation
+	// return real bitrate if available
+	//realBitrate := atomic.LoadUint64(&manager.bitrate)
+	//if realBitrate != 0 {
+	//	return int(realBitrate)
+	//}
+
+	// if we do not have function to estimate bitrate, return 0
 	if manager.getBitrate == nil {
 		return 0
 	}
@@ -352,12 +367,44 @@ func (manager *StreamSinkManagerCtx) CreatePipeline() error {
 	return nil
 }
 
+func (manager *StreamSinkManagerCtx) saveBitrateDelta(delta float64) {
+	// get timestamp in seconds
+	sec := time.Now().Unix()
+	// last bucket is timestamp rounded to 3 seconds - 1 second
+	last := int((sec - 1) % 3)
+	// current bucket is timestamp rounded to 3 seconds
+	curr := int(sec % 3)
+	// next bucket is timestamp rounded to 3 seconds + 1 second
+	next := int((sec + 1) % 3)
+
+	if manager.brDeltas[next] != 0 {
+		// atomic update bitrate
+		atomic.StoreUint64(&manager.bitrate, uint64(manager.brDeltas[last]))
+		// empty next bucket
+		manager.brDeltas[next] = 0
+		// log bitrate
+		if manager.codec.IsVideo() {
+			manager.logger.Debug().
+				Uint64("bitrate", manager.bitrate).
+				Msg("bitrate")
+		}
+	}
+
+	// add rate to current bucket
+	manager.brDeltas[curr] += delta
+}
+
 func (manager *StreamSinkManagerCtx) onSample(sample types.Sample) {
 	manager.listenersMu.Lock()
 	defer manager.listenersMu.Unlock()
 
-	size := len(sample.Data)
-	manager.totalBytes.Add(float64(size))
+	// save to metrics
+	length := float64(sample.Length) / 8
+	manager.totalBytes.Add(length)
+
+	// save bitrate delta
+	delta := length / (float64(sample.Duration.Microseconds()) / 1e6)
+	manager.saveBitrateDelta(delta)
 
 	// if is not delta unit -> it can be decoded independently -> it is a keyframe
 	if manager.waitForKf && !sample.DeltaUnit && len(manager.listenersKf) > 0 {
@@ -387,4 +434,7 @@ func (manager *StreamSinkManagerCtx) DestroyPipeline() {
 	manager.pipeline = nil
 
 	manager.pipelinesActive.Set(0)
+
+	manager.brDeltas = make(map[int]float64)
+	atomic.StoreUint64(&manager.bitrate, 0)
 }

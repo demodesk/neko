@@ -18,6 +18,7 @@ var (
 
 type Sample struct {
 	Data      []byte
+	Length    int
 	Duration  time.Duration
 	DeltaUnit bool // this unit cannot be decoded independently.
 }
