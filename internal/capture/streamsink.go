@@ -367,9 +367,9 @@ func (manager *StreamSinkManagerCtx) CreatePipeline() error {
 	return nil
 }
 
-func (manager *StreamSinkManagerCtx) saveBitrateDelta(delta float64) {
-	// get timestamp in seconds
-	sec := time.Now().Unix()
+func (manager *StreamSinkManagerCtx) saveBitrateDelta(timestamp time.Time, delta float64) {
+	// get unix timestamp in seconds
+	sec := timestamp.Unix()
 	// last bucket is timestamp rounded to 3 seconds - 1 second
 	last := int((sec - 1) % 3)
 	// current bucket is timestamp rounded to 3 seconds
@@ -404,7 +404,7 @@ func (manager *StreamSinkManagerCtx) onSample(sample types.Sample) {
 
 	// save bitrate delta
 	delta := length / (float64(sample.Duration.Microseconds()) / 1e6)
-	manager.saveBitrateDelta(delta)
+	manager.saveBitrateDelta(sample.Timestamp, delta)
 
 	// if is not delta unit -> it can be decoded independently -> it is a keyframe
 	if manager.waitForKf && !sample.DeltaUnit && len(manager.listenersKf) > 0 {

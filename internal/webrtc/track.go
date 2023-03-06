@@ -111,8 +111,9 @@ func (t *Track) sampleReader() {
 		}
 
 		err := t.track.WriteSample(media.Sample{
-			Data:     sample.Data,
-			Duration: sample.Duration,
+			Data:      sample.Data,
+			Duration:  sample.Duration,
+			Timestamp: sample.Timestamp,
 		})
 
 		if err != nil && !errors.Is(err, io.ErrClosedPipe) {
