@@ -28,7 +28,7 @@ type Sample struct {
 }
 
 type SampleListener interface {
-	Sample() chan Sample
+	WriteSample(Sample)
 }
 
 type Receiver interface {

@@ -191,8 +191,8 @@ func (t *Track) SetPaused(paused bool) {
 	t.paused = paused
 }
 
-func (t *Track) Sample() chan types.Sample {
-	return t.sample
+func (t *Track) WriteSample(sample types.Sample) {
+	t.sample <- sample
 }
 
 func (t *Track) SetBitrate(bitrate int) (bool, error) {

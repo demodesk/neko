@@ -407,8 +407,8 @@ func (manager *StreamSinkManagerCtx) onSample(sample types.Sample) {
 		manager.listenersKf = make(map[uintptr]types.SampleListener)
 	}
 
-	for _, emit := range manager.listeners {
-		emit.Sample() <- sample
+	for _, l := range manager.listeners {
+		l.WriteSample(sample)
 	}
 }
 
