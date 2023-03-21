@@ -1,5 +1,6 @@
 ARG UBUNTU_RELEASE=20.04
-ARG CUDA_VERSION=11.2.2
+ARG CUDA_VERSION=11.4.3
+ARG VIRTUALGL_VERSION=3.1
 ARG GSTREAMER_VERSION=1.20
 
 #
@@ -115,7 +116,9 @@ RUN ./build
 #
 # Stage 2: Runtime.
 #
-FROM nvcr.io/nvidia/cudagl:${CUDA_VERSION}-runtime-ubuntu${UBUNTU_RELEASE} as runtime
+FROM nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu${UBUNTU_RELEASE} as runtime
+ARG UBUNTU_RELEASE
+ARG VIRTUALGL_VERSION
 
 # Make all NVIDIA GPUs visible by default
 ARG NVIDIA_VISIBLE_DEVICES=all
@@ -133,6 +136,42 @@ ARG USER_UID=1000
 ARG USER_GID=$USER_UID
 
 #
+# install hardware accleration dependencies
+ENV DEBIAN_FRONTEND=noninteractive
+RUN set -eux; \
+    dpkg --add-architecture i386; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        # opengl base: https://gitlab.com/nvidia/container-images/opengl/-/blob/ubuntu20.04/base/Dockerfile
+        libxau6 libxau6:i386 \
+        libxdmcp6 libxdmcp6:i386 \
+        libxcb1 libxcb1:i386 \
+        libxext6 libxext6:i386 \
+        libx11-6 libx11-6:i386 \
+        # opengl runtime: https://gitlab.com/nvidia/container-images/opengl/-/blob/ubuntu20.04/glvnd/runtime/Dockerfile
+        libglvnd0 libglvnd0:i386 \
+        libgl1 libgl1:i386 \
+        libglx0 libglx0:i386 \
+        libegl1 libegl1:i386 \
+        libgles2 libgles2:i386 \
+        # hardware accleration utilities
+        libglu1 libglu1:i386 \
+        libvulkan-dev libvulkan-dev:i386 \
+        mesa-utils mesa-utils-extra \
+        mesa-va-drivers mesa-vulkan-drivers \
+        vainfo vdpauinfo; \
+    # install vulkan-utils or vulkan-tools depending on ubuntu release
+    if [ "${UBUNTU_RELEASE}" = "18.04" ]; then \
+        apt-get install -y --no-install-recommends vulkan-utils; \
+    else \
+        apt-get install -y --no-install-recommends vulkan-tools; \
+    fi; \
+    #
+    # clean up
+    apt-get clean -y; \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/*
+
+#
 # install dependencies
 ENV DEBIAN_FRONTEND=noninteractive
 RUN set -eux; \
@@ -141,17 +180,13 @@ RUN set -eux; \
         wget ca-certificates supervisor \
         pulseaudio dbus-x11 xserver-xorg-video-dummy \
         libcairo2 libxcb1 libxrandr2 libxv1 libopus0 libvpx6 libx264-155 \
-        software-properties-common cabextract aptitude vim curl \
+        libgtk-3-bin software-properties-common cabextract aptitude vim curl \
         #
         # needed for profile upload preStop hook
         zip curl \
         #
         # file chooser handler, clipboard, drop
-        xdotool xclip libgtk-3-0 \
-        #
-        # hardware acclerations utilities
-        libgtk-3-bin mesa-utils mesa-utils-extra mesa-va-drivers mesa-vulkan-drivers \
-        libvulkan-dev libvulkan-dev:i386 vdpauinfo; \
+        xdotool xclip libgtk-3-0; \
     # install libxcvt0 (not available in debian:bullseye)
     wget http://ftp.de.debian.org/debian/pool/main/libx/libxcvt/libxcvt0_0.1.2-1_amd64.deb; \
     apt-get install  --no-install-recommends ./libxcvt0_0.1.2-1_amd64.deb; \
@@ -198,10 +233,17 @@ RUN set -eux; \
 COPY --from=xserver-xorg-video-dummy /usr/local/lib/xorg/modules/drivers/dummy_drv.so /usr/lib/xorg/modules/drivers/dummy_drv.so
 
 #
-# Install and configure Vulkan manually
-RUN if [ "${UBUNTU_RELEASE}" = "18.04" ]; then apt-get update && apt-get install --no-install-recommends -y vulkan-utils; else apt-get update && apt-get install --no-install-recommends -y vulkan-tools; fi && \
-    rm -rf /var/lib/apt/lists/* && \
-    VULKAN_API_VERSION=$(dpkg -s libvulkan1 | grep -oP 'Version: [0-9|\.]+' | grep -oP '[0-9]+(\.[0-9]+)(\.[0-9]+)') && \
+# Configure EGL and Vulkan manually
+RUN VULKAN_API_VERSION=$(dpkg -s libvulkan1 | grep -oP 'Version: [0-9|\.]+' | grep -oP '[0-9]+(\.[0-9]+)(\.[0-9]+)') && \
+    # Configure EGL manually
+    mkdir -p /usr/share/glvnd/egl_vendor.d/ && \
+    echo "{\n\
+    \"file_format_version\" : \"1.0.0\",\n\
+    \"ICD\": {\n\
+        \"library_path\": \"libEGL_nvidia.so.0\"\n\
+    }\n\
+}" > /usr/share/glvnd/egl_vendor.d/10_nvidia.json && \
+    # Configure Vulkan manually
     mkdir -p /etc/vulkan/icd.d/ && \
     echo "{\n\
     \"file_format_version\" : \"1.0.0\",\n\
@@ -211,8 +253,6 @@ RUN if [ "${UBUNTU_RELEASE}" = "18.04" ]; then apt-get update && apt-get install
     }\n\
 }" > /etc/vulkan/icd.d/nvidia_icd.json
 
-ARG VIRTUALGL_VERSION=3.1
-#
 # Install VirtualGL and make libraries available for preload
 RUN curl -fsSL -O "https://sourceforge.net/projects/virtualgl/files/virtualgl_${VIRTUALGL_VERSION}_amd64.deb" && \
     curl -fsSL -O "https://sourceforge.net/projects/virtualgl/files/virtualgl32_${VIRTUALGL_VERSION}_amd64.deb" && \
