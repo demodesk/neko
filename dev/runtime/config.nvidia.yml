@@ -8,6 +8,7 @@ capture:
       nvh264enc:
         fps: 25
         bitrate: 2
+        #gst_prefix: "! cudaupload ! cudaconvert ! video/x-raw(memory:CUDAMemory),format=NV12"
         gst_prefix: "! video/x-raw,format=NV12"
         gst_encoder: "nvh264enc"
         gst_params:
