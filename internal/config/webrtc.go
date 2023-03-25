@@ -122,6 +122,10 @@ func (s *WebRTC) Set() {
 		log.Warn().Err(err).Msgf("unable to parse backend ICE servers")
 	}
 
+	if s.ICELite && len(s.ICEServersBackend) > 0 {
+		log.Warn().Msgf("ICE Lite is enabled, but backend ICE servers are configured. Backend ICE servers will be ignored.")
+	}
+
 	// if no frontend or backend ice servers are configured
 	if len(s.ICEServersFrontend) == 0 && len(s.ICEServersBackend) == 0 {
 		// parse global ice servers

@@ -45,20 +45,24 @@ func New(desktop types.DesktopManager, capture types.CaptureManager, config *con
 		SDPSemantics: webrtc.SDPSemanticsUnifiedPlanWithFallback,
 	}
 
-	for _, server := range config.ICEServersBackend {
-		var credential any
-		if server.Credential != "" {
-			credential = server.Credential
-		} else {
-			credential = false
-		}
+	if !config.ICELite {
+		ICEServers := []webrtc.ICEServer{}
+		for _, server := range config.ICEServersBackend {
+			var credential any
+			if server.Credential != "" {
+				credential = server.Credential
+			} else {
+				credential = false
+			}
 
-		configuration.ICEServers = append(
-			configuration.ICEServers, webrtc.ICEServer{
+			ICEServers = append(ICEServers, webrtc.ICEServer{
 				URLs:       server.URLs,
 				Username:   server.Username,
 				Credential: credential,
 			})
+		}
+
+		configuration.ICEServers = ICEServers
 	}
 
 	return &WebRTCManagerCtx{
