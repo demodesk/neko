@@ -120,6 +120,7 @@ session:
 webrtc:
   icelite: true
   iceservers:
+    # Backend servers are ignored if icelite is true.
     backend:
       - urls: [ stun:stun.l.google.com:19302 ]
     frontend:
