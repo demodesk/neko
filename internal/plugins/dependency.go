@@ -121,10 +121,10 @@ func (a *dependency) start(pm types.PluginManagers) error {
 	}
 
 	err := a.plugin.Start(pm)
-	a.logger.Err(err).Str("plugin", a.plugin.Name()).Msg("plugin start")
 	if err != nil {
 		return fmt.Errorf("plugin %s failed to start: %s", a.plugin.Name(), err)
 	}
 
+	a.logger.Info().Str("plugin", a.plugin.Name()).Msg("plugin started")
 	return nil
 }
