@@ -85,25 +85,24 @@ func (manager *ManagerCtx) load(path string) error {
 	}
 
 	if err = manager.plugins.addPlugin(p); err != nil {
-		return fmt.Errorf("failed to add plugin '%s': %w", p.Name(), err)
+		return fmt.Errorf("failed to add plugin: %w", err)
 	}
 
-	manager.logger.Info().Msgf("loaded plugin '%s', total %d plugins", p.Name(), manager.plugins.len())
 	return nil
 }
 
 func (manager *ManagerCtx) InitConfigs(cmd *cobra.Command) {
-	_ = manager.plugins.forEach(func(plug *dependency) error {
-		if err := plug.plugin.Config().Init(cmd); err != nil {
-			log.Err(err).Str("plugin", plug.plugin.Name()).Msg("unable to initialize configuration")
+	_ = manager.plugins.forEach(func(d *dependency) error {
+		if err := d.plugin.Config().Init(cmd); err != nil {
+			log.Err(err).Str("plugin", d.plugin.Name()).Msg("unable to initialize configuration")
 		}
 		return nil
 	})
 }
 
 func (manager *ManagerCtx) SetConfigs() {
-	_ = manager.plugins.forEach(func(plug *dependency) error {
-		plug.plugin.Config().Set()
+	_ = manager.plugins.forEach(func(d *dependency) error {
+		d.plugin.Config().Set()
 		return nil
 	})
 }
@@ -130,9 +129,9 @@ func (manager *ManagerCtx) Start(
 }
 
 func (manager *ManagerCtx) Shutdown() error {
-	_ = manager.plugins.forEach(func(plug *dependency) error {
-		err := plug.plugin.Shutdown()
-		manager.logger.Err(err).Str("plugin", plug.plugin.Name()).Msg("plugin shutdown")
+	_ = manager.plugins.forEach(func(d *dependency) error {
+		err := d.plugin.Shutdown()
+		manager.logger.Err(err).Str("plugin", d.plugin.Name()).Msg("plugin shutdown")
 		return nil
 	})
 	return nil
