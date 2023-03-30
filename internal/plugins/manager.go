@@ -150,3 +150,28 @@ func (manager *ManagerCtx) LookupService(pluginName string) (any, error) {
 
 	return expPlug.ExposeService(), nil
 }
+
+func (manager *ManagerCtx) Metadata() []types.PluginMetadata {
+	var plugins []types.PluginMetadata
+
+	_ = manager.plugins.forEach(func(d *dependency) error {
+		dependsOn := make([]string, 0)
+		deps, isDependalbe := d.plugin.(types.DependablePlugin)
+		if isDependalbe {
+			dependsOn = deps.DependsOn()
+		}
+
+		_, isExposable := d.plugin.(types.ExposablePlugin)
+
+		plugins = append(plugins, types.PluginMetadata{
+			Name:         d.plugin.Name(),
+			IsDependable: isDependalbe,
+			IsExposable:  isExposable,
+			DependsOn:    dependsOn,
+		})
+
+		return nil
+	})
+
+	return plugins
+}
