@@ -13,15 +13,10 @@ capture:
         gst_encoder: "nvh264enc"
         gst_params:
           bitrate: 3000
-          max-bitrate: 5000
           rc-mode: 5 # Low-Delay CBR, High Quality
           preset: 5 # Low Latency, High Performance
           zerolatency: true
-          qp-min: 30
-          qp-max: 51
-          temporal-aq: false
-          aq-strength: 15
-        gst_suffix: "! video/x-h264,stream-format=byte-stream"
+          gop-size: 15
       x264enc:
         fps: 25
         bitrate: 1
