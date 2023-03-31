@@ -121,7 +121,7 @@ ARG UBUNTU_RELEASE
 ARG VIRTUALGL_VERSION
 
 # Make all NVIDIA GPUs visible by default
-ARG NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_VISIBLE_DEVICES all
 # All NVIDIA driver capabilities should preferably be used, check `NVIDIA_DRIVER_CAPABILITIES` inside the container if things do not work
 ENV NVIDIA_DRIVER_CAPABILITIES all
 
@@ -240,7 +240,7 @@ RUN set -eux; \
 COPY --from=xserver-xorg-video-dummy /usr/local/lib/xorg/modules/drivers/dummy_drv.so /usr/lib/xorg/modules/drivers/dummy_drv.so
 
 #
-# Configure EGL and Vulkan manually
+# configure EGL and Vulkan manually
 RUN VULKAN_API_VERSION=$(dpkg -s libvulkan1 | grep -oP 'Version: [0-9|\.]+' | grep -oP '[0-9]+(\.[0-9]+)(\.[0-9]+)') && \
     # Configure EGL manually
     mkdir -p /usr/share/glvnd/egl_vendor.d/ && \
@@ -260,18 +260,24 @@ RUN VULKAN_API_VERSION=$(dpkg -s libvulkan1 | grep -oP 'Version: [0-9|\.]+' | gr
     }\n\
 }" > /etc/vulkan/icd.d/nvidia_icd.json
 
-# Install VirtualGL and make libraries available for preload
-RUN curl -fsSL -O "https://sourceforge.net/projects/virtualgl/files/virtualgl_${VIRTUALGL_VERSION}_amd64.deb" && \
-    curl -fsSL -O "https://sourceforge.net/projects/virtualgl/files/virtualgl32_${VIRTUALGL_VERSION}_amd64.deb" && \
-    apt-get update && apt-get install -y --no-install-recommends ./virtualgl_${VIRTUALGL_VERSION}_amd64.deb ./virtualgl32_${VIRTUALGL_VERSION}_amd64.deb && \
-    rm -f "virtualgl_${VIRTUALGL_VERSION}_amd64.deb" "virtualgl32_${VIRTUALGL_VERSION}_amd64.deb" && \
-    rm -rf /var/lib/apt/lists/* && \
-    chmod u+s /usr/lib/libvglfaker.so && \
-    chmod u+s /usr/lib/libdlfaker.so && \
-    chmod u+s /usr/lib32/libvglfaker.so && \
-    chmod u+s /usr/lib32/libdlfaker.so && \
-    chmod u+s /usr/lib/i386-linux-gnu/libvglfaker.so && \
-    chmod u+s /usr/lib/i386-linux-gnu/libdlfaker.so
+#
+# install VirtualGL and make libraries available for preload
+RUN set -eux; \
+    apt-get update; \
+    wget "https://sourceforge.net/projects/virtualgl/files/virtualgl_${VIRTUALGL_VERSION}_amd64.deb"; \
+    wget "https://sourceforge.net/projects/virtualgl/files/virtualgl32_${VIRTUALGL_VERSION}_amd64.deb"; \
+    apt-get install -y --no-install-recommends ./virtualgl_${VIRTUALGL_VERSION}_amd64.deb ./virtualgl32_${VIRTUALGL_VERSION}_amd64.deb; \
+    rm -f "virtualgl_${VIRTUALGL_VERSION}_amd64.deb" "virtualgl32_${VIRTUALGL_VERSION}_amd64.deb"; \
+    chmod u+s /usr/lib/libvglfaker.so; \
+    chmod u+s /usr/lib/libdlfaker.so; \
+    chmod u+s /usr/lib32/libvglfaker.so; \
+    chmod u+s /usr/lib32/libdlfaker.so; \
+    chmod u+s /usr/lib/i386-linux-gnu/libvglfaker.so; \
+    chmod u+s /usr/lib/i386-linux-gnu/libdlfaker.so; \
+    #
+    # clean up
+    apt-get clean -y; \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/*;
 
 #
 # copy runtime configs
