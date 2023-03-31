@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -47,7 +48,7 @@ func New(desktop types.DesktopManager, capture types.CaptureManager, config *con
 
 	if !config.ICELite {
 		ICEServers := []webrtc.ICEServer{}
-		for _, server := range config.ICEServers {
+		for _, server := range config.ICEServersBackend {
 			var credential any
 			if server.Credential != "" {
 				credential = server.Credential
@@ -137,7 +138,8 @@ func (manager *WebRTCManagerCtx) Start() {
 	manager.logger.Info().
 		Bool("icelite", manager.config.ICELite).
 		Bool("icetrickle", manager.config.ICETrickle).
-		Interface("iceservers", manager.config.ICEServers).
+		Interface("iceservers-frontend", manager.config.ICEServersFrontend).
+		Interface("iceservers-backend", manager.config.ICEServersBackend).
 		Str("nat1to1", strings.Join(manager.config.NAT1To1IPs, ",")).
 		Str("epr", fmt.Sprintf("%d-%d", manager.config.EphemeralMin, manager.config.EphemeralMax)).
 		Int("tcpmux", manager.config.TCPMux).
@@ -155,7 +157,7 @@ func (manager *WebRTCManagerCtx) Shutdown() error {
 }
 
 func (manager *WebRTCManagerCtx) ICEServers() []types.ICEServer {
-	return manager.config.ICEServers
+	return manager.config.ICEServersFrontend
 }
 
 func (manager *WebRTCManagerCtx) newPeerConnection(bitrate int, codecs []codec.RTPCodec, logger zerolog.Logger) (*webrtc.PeerConnection, cc.BandwidthEstimator, error) {
@@ -566,6 +568,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int, 
 		logger.Info().Interface("data_channel", dc).Msg("got remote data channel")
 	})
 
+	var once sync.Once
 	connection.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 		switch state {
 		case webrtc.PeerConnectionStateConnected:
@@ -574,13 +577,16 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session, bitrate int, 
 			webrtc.PeerConnectionStateFailed:
 			connection.Close()
 		case webrtc.PeerConnectionStateClosed:
-			session.SetWebRTCConnected(peer, false)
-			if err = video.RemoveReceiver(videoTrack); err != nil {
-				logger.Err(err).Msg("failed to remove video receiver")
-			}
-			audioTrack.Shutdown()
-			videoTrack.Shutdown()
-			close(videoRtcp)
+			// ensure we only run this once
+			once.Do(func() {
+				session.SetWebRTCConnected(peer, false)
+				if err = video.RemoveReceiver(videoTrack); err != nil {
+					logger.Err(err).Msg("failed to remove video receiver")
+				}
+				audioTrack.Shutdown()
+				videoTrack.Shutdown()
+				close(videoRtcp)
+			})
 		}
 
 		manager.metrics.SetState(session, state)
