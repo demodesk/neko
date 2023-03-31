@@ -185,7 +185,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
-        wget ca-certificates supervisor \
+        wget ca-certificates \
         pulseaudio dbus-x11 xserver-xorg-video-dummy \
         libcairo2 libxcb1 libxrandr2 libxv1 libopus0 libvpx6 libx264-155 \
         libgtk-3-bin software-properties-common cabextract aptitude vim curl \
@@ -199,6 +199,9 @@ RUN set -eux; \
     wget http://ftp.de.debian.org/debian/pool/main/libx/libxcvt/libxcvt0_0.1.2-1_amd64.deb; \
     apt-get install  --no-install-recommends ./libxcvt0_0.1.2-1_amd64.deb; \
     rm ./libxcvt0_0.1.2-1_amd64.deb; \
+    # install never version for supervisor that supports -s flag
+    apt-get install -y --no-install-recommends pip; \
+    pip install supervisor --upgrade; \
     #
     # create a non-root user
     groupadd --gid $USER_GID $USERNAME; \
@@ -321,4 +324,4 @@ HEALTHCHECK --interval=10s --timeout=5s --retries=8 \
 
 #
 # run neko
-CMD ["/usr/bin/supervisord", "-c", "/etc/neko/supervisord.conf"]
+CMD ["/usr/local/bin/supervisord", "-s", "-c", "/etc/neko/supervisord.conf"]
