@@ -17,6 +17,7 @@ capture:
           preset: 5 # Low Latency, High Performance
           zerolatency: true
           gop-size: 15
+        gst_suffix: "! video/x-h264,stream-format=byte-stream,profile=constrained-baseline"
       x264enc:
         fps: 25
         bitrate: 1
@@ -29,7 +30,7 @@ capture:
           byte-stream: true
           tune: zerolatency
           speed-preset: veryfast
-        gst_suffix: "! video/x-h264,stream-format=byte-stream"
+        gst_suffix: "! video/x-h264,stream-format=byte-stream,profile=constrained-baseline"
 
 server:
   pprof: true
