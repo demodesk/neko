@@ -16,8 +16,8 @@ capture:
           rc-mode: 5 # Low-Delay CBR, High Quality
           preset: 5 # Low Latency, High Performance
           zerolatency: true
-          gop-size: 15
-        gst_suffix: "! video/x-h264,stream-format=byte-stream,profile=constrained-baseline"
+          gop-size: 25
+        gst_suffix: "! h264parse config-interval=-1 ! video/x-h264,stream-format=byte-stream,profile=constrained-baseline"
       x264enc:
         fps: 25
         bitrate: 1
@@ -26,7 +26,7 @@ capture:
         gst_params:
           threads: 4
           bitrate: 4096
-          key-int-max: 15
+          key-int-max: 25
           byte-stream: true
           tune: zerolatency
           speed-preset: veryfast
