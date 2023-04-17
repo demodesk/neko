@@ -48,7 +48,7 @@ type Session interface {
 	// websocket
 	ConnectWebSocketPeer(websocketPeer WebSocketPeer)
 	DisconnectWebSocketPeer(websocketPeer WebSocketPeer, delayed bool)
-	GetWebSocketPeer() WebSocketPeer
+	DestroyWebSocketPeer(reason string)
 	Send(event string, payload any)
 
 	// webrtc

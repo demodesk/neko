@@ -51,7 +51,7 @@ func (session *SessionCtx) profileChanged() {
 	}
 
 	if (!session.profile.CanConnect || !session.profile.CanLogin) && session.state.IsConnected {
-		session.GetWebSocketPeer().Destroy("profile changed")
+		session.DestroyWebSocketPeer("profile changed")
 	}
 
 	// update webrtc paused state
@@ -165,20 +165,33 @@ func (session *SessionCtx) DisconnectWebSocketPeer(websocketPeer types.WebSocket
 }
 
 //
-// Get current WebRTC peer. Nil if not connected.
+// Destroy WebSocket peer disconnects the peer and destroys it. It ensures that the peer is
+// disconnected immediately even though normal flow would be to disconnect it delayed.
 //
-func (session *SessionCtx) GetWebSocketPeer() types.WebSocketPeer {
+func (session *SessionCtx) DestroyWebSocketPeer(reason string) {
 	session.websocketMu.Lock()
-	defer session.websocketMu.Unlock()
+	peer := session.websocketPeer
+	session.websocketMu.Unlock()
 
-	return session.websocketPeer
+	if peer == nil {
+		return
+	}
+
+	// disconnect peer first, so that it is not used anymore
+	session.DisconnectWebSocketPeer(peer, false)
+
+	// destroy it afterwards
+	peer.Destroy(reason)
 }
 
 //
 // Send event to websocket peer.
 //
 func (session *SessionCtx) Send(event string, payload any) {
-	peer := session.GetWebSocketPeer()
+	session.websocketMu.Lock()
+	peer := session.websocketPeer
+	session.websocketMu.Unlock()
+
 	if peer != nil {
 		peer.Send(event, payload)
 	}

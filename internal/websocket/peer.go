@@ -2,7 +2,6 @@ package websocket
 
 import (
 	"encoding/json"
-	"errors"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -30,10 +29,6 @@ func newPeer(logger zerolog.Logger, connection *websocket.Conn) *WebSocketPeerCt
 func (peer *WebSocketPeerCtx) Send(event string, payload any) {
 	peer.mu.Lock()
 	defer peer.mu.Unlock()
-
-	if peer.connection == nil {
-		return
-	}
 
 	raw, err := json.Marshal(payload)
 	if err != nil {
@@ -69,10 +64,6 @@ func (peer *WebSocketPeerCtx) Ping() error {
 	peer.mu.Lock()
 	defer peer.mu.Unlock()
 
-	if peer.connection == nil {
-		return errors.New("peer connection not found")
-	}
-
 	// application level heartbeat
 	if err := peer.connection.WriteJSON(types.WebSocketMessage{
 		Event: event.SYSTEM_HEARTBEAT,
@@ -93,9 +84,6 @@ func (peer *WebSocketPeerCtx) Destroy(reason string) {
 	peer.mu.Lock()
 	defer peer.mu.Unlock()
 
-	if peer.connection != nil {
-		err := peer.connection.Close()
-		peer.logger.Err(err).Msg("peer connection destroyed")
-		peer.connection = nil
-	}
+	err := peer.connection.Close()
+	peer.logger.Err(err).Msg("peer connection destroyed")
 }
