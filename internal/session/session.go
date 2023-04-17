@@ -83,9 +83,8 @@ func (session *SessionCtx) SetCursor(cursor types.Cursor) {
 // ---
 
 //
-// Connect WebSocket peer sets current peer and emits connected event.
-// - If there was a previous peer, it will be destroyed.
-// - If the peer is already set, it will be ignored.
+// Connect WebSocket peer sets current peer and emits connected event. It also destroys the
+// previous peer, if there was one. If the peer is already set, it will be ignored.
 //
 func (session *SessionCtx) ConnectWebSocketPeer(websocketPeer types.WebSocketPeer) {
 	session.websocketMu.Lock()
@@ -126,10 +125,6 @@ func (session *SessionCtx) DisconnectWebSocketPeer(websocketPeer types.WebSocket
 		return
 	}
 
-	session.logger.Info().
-		Bool("delayed", delayed).
-		Msg("set websocket disconnected")
-
 	//
 	// ws delayed
 	//
@@ -150,6 +145,7 @@ func (session *SessionCtx) DisconnectWebSocketPeer(websocketPeer types.WebSocket
 	session.wsDelayedMu.Unlock()
 
 	if delayed {
+		session.logger.Info().Msg("delayed websocket disconnected")
 		return
 	}
 
@@ -157,6 +153,7 @@ func (session *SessionCtx) DisconnectWebSocketPeer(websocketPeer types.WebSocket
 	// not delayed
 	//
 
+	session.logger.Info().Msg("set websocket disconnected")
 	session.state.IsConnected = false
 	session.manager.emmiter.Emit("disconnected", session)
 
@@ -192,13 +189,7 @@ func (session *SessionCtx) Send(event string, payload any) {
 // ---
 
 //
-// Set webrtc peer.
-// - If there is already a webrtc peer, it will be destroyed and replaced with the new one.
-// - If the new webrtc peer is nil, the old one will be destroyed.
-//
-// This is how webrtc pee should be destroyed. Otherwise webrtc peer might be left in a
-// state where it is destroyed, but not yet removed from the session. This can cause
-// unexpected behaviour.
+// Set webrtc peer and destroy the old one, if there is old one.
 //
 func (session *SessionCtx) SetWebRTCPeer(webrtcPeer types.WebRTCPeer) {
 	session.webrtcMu.Lock()
@@ -216,7 +207,7 @@ func (session *SessionCtx) SetWebRTCPeer(webrtcPeer types.WebRTCPeer) {
 // same as the one we are setting the connected state for.
 //
 // If webrtc peer is disconnected, we don't expect it to be reconnected, so we set it to nil
-// and send a signal close to the client. New connection will use a new webrtc peer.
+// and send a signal close to the client. New connection is expected to use a new webrtc peer.
 //
 func (session *SessionCtx) SetWebRTCConnected(webrtcPeer types.WebRTCPeer, connected bool) {
 	session.webrtcMu.Lock()
