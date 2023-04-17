@@ -46,8 +46,8 @@ type Session interface {
 	SetCursor(cursor Cursor)
 
 	// websocket
-	SetWebSocketPeer(websocketPeer WebSocketPeer)
-	SetWebSocketConnected(websocketPeer WebSocketPeer, connected bool, delayed bool)
+	ConnectWebSocketPeer(websocketPeer WebSocketPeer)
+	DisconnectWebSocketPeer(websocketPeer WebSocketPeer, delayed bool)
 	GetWebSocketPeer() WebSocketPeer
 	Send(event string, payload any)
 
