@@ -3,6 +3,7 @@ package webrtc
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"sync"
 	"time"
 
@@ -28,7 +29,11 @@ type WebRTCPeerCtx struct {
 	session    types.Session
 	metrics    *metrics
 	connection *webrtc.PeerConnection
-	estimator  cc.BandwidthEstimator
+	// bandwidth estimator
+	estimator      cc.BandwidthEstimator
+	bitrateHistory queue
+	// stream selectors
+	videoSelector types.StreamSelectorManager
 	// tracks & channels
 	audioTrack  *Track
 	videoTrack  *Track
@@ -37,6 +42,7 @@ type WebRTCPeerCtx struct {
 	// config
 	iceTrickle       bool
 	estimatorPassive bool
+	videoAuto        bool
 }
 
 //
@@ -102,6 +108,7 @@ func (peer *WebRTCPeerCtx) SetCandidate(candidate webrtc.ICECandidateInit) error
 	return peer.connection.AddICECandidate(candidate)
 }
 
+// TODO: Add shutdown function?
 func (peer *WebRTCPeerCtx) Destroy() {
 	peer.mu.Lock()
 	defer peer.mu.Unlock()
@@ -128,15 +135,23 @@ func (peer *WebRTCPeerCtx) estimatorReader() {
 			break
 		}
 
-		if !peer.videoTrack.VideoAuto() {
+		if !peer.videoAuto || peer.estimatorPassive {
 			continue
 		}
 
-		if !peer.estimatorPassive {
-			err := peer.SetVideoBitrate(targetBitrate)
-			if err != nil {
-				peer.logger.Warn().Err(err).Msg("failed to set video bitrate")
-			}
+		bitrate := peer.bitrateHistory.normaliseBitrate(targetBitrate)
+
+		peer.logger.Debug().
+			Int("target_bitrate", targetBitrate).
+			Int("normalized_bitrate", bitrate).
+			Msg("got bitrate from estimator")
+
+		err := peer.SetVideo(types.StreamSelector{
+			Bitrate:        uint64(bitrate),
+			BitrateNearest: true,
+		})
+		if err != nil {
+			peer.logger.Warn().Err(err).Msg("failed to set video bitrate")
 		}
 	}
 }
@@ -145,26 +160,24 @@ func (peer *WebRTCPeerCtx) estimatorReader() {
 // video
 //
 
-func (peer *WebRTCPeerCtx) SetVideoBitrate(peerBitrate int) error {
+func (peer *WebRTCPeerCtx) SetVideo(selector types.StreamSelector) error {
 	peer.mu.Lock()
 	defer peer.mu.Unlock()
 
-	// when switching from manual to auto bitrate estimation, in case the estimator is
-	// idle (lastBitrate > maxBitrate), we want to go back to the previous estimated bitrate
-	if peerBitrate == 0 && peer.estimator != nil && !peer.estimatorPassive {
-		peerBitrate = peer.estimator.GetTargetBitrate()
-		peer.logger.Debug().
-			Int("peer_bitrate", peerBitrate).
-			Msg("evaluated bitrate")
+	// get requested video stream from selector
+	stream, ok := peer.videoSelector.GetStream(selector)
+	if !ok {
+		return fmt.Errorf("stream not found")
 	}
 
-	changed, err := peer.videoTrack.SetBitrate(peerBitrate)
+	// set video stream to track
+	changed, err := peer.videoTrack.SetStream(stream)
 	if err != nil {
 		return err
 	}
 
+	// if video stream was already set, do nothing
 	if !changed {
-		// TODO: return error?
 		return nil
 	}
 
@@ -173,60 +186,38 @@ func (peer *WebRTCPeerCtx) SetVideoBitrate(peerBitrate int) error {
 
 	peer.metrics.SetVideoID(videoID)
 	peer.logger.Debug().
-		Int("peer_bitrate", peerBitrate).
-		Int("video_bitrate", bitrate).
+		Uint64("video_bitrate", bitrate).
 		Str("video_id", videoID).
-		Msg("peer bitrate triggered video stream change")
+		Msg("triggered video stream change")
 
 	go peer.session.Send(
 		event.SIGNAL_VIDEO,
+		// TODO: Refactor.
 		message.SignalVideo{
-			Video:     videoID,
-			Bitrate:   bitrate,
-			VideoAuto: peer.videoTrack.VideoAuto(),
+			Video:     videoID,        // TODO: Refactor.
+			Bitrate:   int(bitrate),   // TODO: Refactor.
+			VideoAuto: peer.videoAuto, // TODO: Refactor.
 		})
 
 	return nil
 }
 
-func (peer *WebRTCPeerCtx) SetVideoID(videoID string) error {
-	peer.mu.Lock()
-	defer peer.mu.Unlock()
-
-	changed, err := peer.videoTrack.SetVideoID(videoID)
-	if err != nil {
-		return err
-	}
-
-	if !changed {
-		// TODO: return error?
-		return nil
-	}
-
-	bitrate := peer.videoTrack.stream.Bitrate()
-
-	peer.logger.Debug().
-		Str("video_id", videoID).
-		Int("video_bitrate", bitrate).
-		Msg("peer video id triggered video stream change")
-
-	go peer.session.Send(
-		event.SIGNAL_VIDEO,
-		message.SignalVideo{
-			Video:     videoID,
-			Bitrate:   bitrate,
-			VideoAuto: peer.videoTrack.VideoAuto(),
-		})
-
-	return nil
-}
-
-func (peer *WebRTCPeerCtx) GetVideoID() string {
+func (peer *WebRTCPeerCtx) Video() types.VideoTrack {
 	peer.mu.Lock()
 	defer peer.mu.Unlock()
 
 	// TODO: Refactor.
-	return peer.videoTrack.stream.ID()
+	stream, ok := peer.videoTrack.Stream()
+	if !ok {
+		// TODO: Refactor.
+		return types.VideoTrack{}
+	}
+
+	// TODO: Refactor.
+	return types.VideoTrack{
+		ID:      stream.ID(),
+		Bitrate: stream.Bitrate(),
+	}
 }
 
 func (peer *WebRTCPeerCtx) SetPaused(isPaused bool) error {
@@ -239,18 +230,32 @@ func (peer *WebRTCPeerCtx) SetPaused(isPaused bool) error {
 	return nil
 }
 
+func (peer *WebRTCPeerCtx) Paused() bool {
+	peer.mu.Lock()
+	defer peer.mu.Unlock()
+
+	return peer.videoTrack.Paused() || peer.audioTrack.Paused()
+}
+
 func (peer *WebRTCPeerCtx) SetVideoAuto(videoAuto bool) {
+	peer.mu.Lock()
+	defer peer.mu.Unlock()
+
 	// if estimator is enabled and is not passive, enable video auto bitrate
 	if peer.estimator != nil && !peer.estimatorPassive {
-		peer.videoTrack.SetVideoAuto(videoAuto)
+		peer.logger.Info().Bool("video_auto", videoAuto).Msg("set video auto")
+		peer.videoAuto = videoAuto
 	} else {
 		peer.logger.Warn().Msg("estimator is disabled or in passive mode, cannot change video auto")
-		peer.videoTrack.SetVideoAuto(false) // ensure video auto is disabled
+		peer.videoAuto = false // ensure video auto is disabled
 	}
 }
 
 func (peer *WebRTCPeerCtx) VideoAuto() bool {
-	return peer.videoTrack.VideoAuto()
+	peer.mu.Lock()
+	defer peer.mu.Unlock()
+
+	return peer.videoAuto
 }
 
 //

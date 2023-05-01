@@ -31,26 +31,6 @@ type SampleListener interface {
 	WriteSample(Sample)
 }
 
-type Receiver interface {
-	SetStream(stream StreamSinkManager) (changed bool, err error)
-	RemoveStream()
-	OnBitrateChange(f func(bitrate int) (changed bool, err error))
-	OnVideoChange(f func(videoID string) (changed bool, err error))
-	VideoAuto() bool
-	SetVideoAuto(videoAuto bool)
-}
-
-type BucketsManager interface {
-	IDs() []string
-	Codec() codec.RTPCodec
-	SetReceiver(receiver Receiver)
-	RemoveReceiver(receiver Receiver) error
-
-	DestroyAll()
-	RecreateAll() error
-	Shutdown()
-}
-
 type BroadcastManager interface {
 	Start(url string) error
 	Stop()
@@ -64,10 +44,26 @@ type ScreencastManager interface {
 	Image() ([]byte, error)
 }
 
+type StreamSelector struct {
+	// select stream by its ID
+	ID string
+	// select stream by its bitrate
+	Bitrate uint64
+	// if no stream with exact bitrate is found, select stream with nearest bitrate
+	BitrateNearest bool
+}
+
+type StreamSelectorManager interface {
+	IDs() []string
+	Codec() codec.RTPCodec
+
+	GetStream(selector StreamSelector) (StreamSinkManager, bool)
+}
+
 type StreamSinkManager interface {
 	ID() string
 	Codec() codec.RTPCodec
-	Bitrate() int
+	Bitrate() uint64
 
 	AddListener(listener SampleListener) error
 	RemoveListener(listener SampleListener) error
@@ -94,12 +90,10 @@ type CaptureManager interface {
 	Start()
 	Shutdown() error
 
-	GetBitrateFromVideoID(videoID string) (int, error)
-
 	Broadcast() BroadcastManager
 	Screencast() ScreencastManager
 	Audio() StreamSinkManager
-	Video() BucketsManager
+	Video() StreamSelectorManager
 
 	Webcam() StreamSrcManager
 	Microphone() StreamSrcManager
@@ -200,55 +194,4 @@ func (config *VideoConfig) GetPipeline(screen ScreenSize) (string, error) {
 		encPipeline,
 		config.GstSuffix,
 	}[:], " "), nil
-}
-
-func (config *VideoConfig) GetBitrateFn(getScreen func() ScreenSize) func() (int, error) {
-	return func() (int, error) {
-		if config.Bitrate > 0 {
-			return config.Bitrate, nil
-		}
-
-		screen := getScreen()
-
-		values := map[string]any{
-			"width":  screen.Width,
-			"height": screen.Height,
-			"fps":    screen.Rate,
-		}
-
-		language := []gval.Language{
-			gval.Function("round", func(args ...any) (any, error) {
-				return (int)(math.Round(args[0].(float64))), nil
-			}),
-		}
-
-		// TOOD: do not read target-bitrate from pipeline, but only from config.
-
-		// TODO: This is only for vp8.
-		expr, ok := config.GstParams["target-bitrate"]
-		if !ok {
-			// TODO: This is only for h264.
-			expr, ok = config.GstParams["bitrate"]
-			if !ok {
-				return 0, fmt.Errorf("bitrate not found")
-			}
-		}
-
-		bitrate, err := gval.Evaluate(expr, values, language...)
-		if err != nil {
-			return 0, fmt.Errorf("failed to evaluate bitrate: %w", err)
-		}
-
-		var bitrateInt int
-		switch val := bitrate.(type) {
-		case int:
-			bitrateInt = val
-		case float64:
-			bitrateInt = (int)(val)
-		default:
-			return 0, fmt.Errorf("bitrate is not int or float64")
-		}
-
-		return bitrateInt, nil
-	}
 }
