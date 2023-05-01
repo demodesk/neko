@@ -114,10 +114,21 @@ func (manager *StreamSelectorManagerCtx) nearestBitrate(bitrate uint64) types.St
 	var diffs []streamDiff
 
 	for _, stream := range manager.streams {
+		// TODO: If we don't have a bitrate yet, we can't compare it.
+		bitrate := stream.Bitrate()
+		if bitrate == 0 {
+			continue
+		}
 		diffs = append(diffs, streamDiff{
 			id:          stream.ID(),
 			bitrateDiff: int(bitrate) - int(stream.Bitrate()),
 		})
+	}
+
+	// no streams available
+	if len(diffs) == 0 {
+		// return first stream
+		return manager.streams[manager.streamIDs[0]]
 	}
 
 	sort.Slice(diffs, func(i, j int) bool {

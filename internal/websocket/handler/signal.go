@@ -141,10 +141,14 @@ func (h *MessageHandlerCtx) signalVideo(session types.Session, payload *message.
 
 	peer.SetVideoAuto(payload.VideoAuto)
 
-	// TODO: Refactor
-	return peer.SetVideo(types.StreamSelector{
-		ID:             payload.Video,
-		Bitrate:        uint64(payload.Bitrate),
-		BitrateNearest: true,
-	})
+	if payload.Video != "" && payload.Bitrate == 0 {
+		// TODO: Refactor
+		return peer.SetVideo(types.StreamSelector{
+			ID:             payload.Video,
+			Bitrate:        uint64(payload.Bitrate),
+			BitrateNearest: true,
+		})
+	}
+
+	return nil
 }
