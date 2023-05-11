@@ -19,6 +19,7 @@ import (
 
 	"github.com/demodesk/neko/internal/config"
 	"github.com/demodesk/neko/internal/webrtc/cursor"
+	"github.com/demodesk/neko/internal/webrtc/estimate"
 	"github.com/demodesk/neko/internal/webrtc/pionlog"
 	"github.com/demodesk/neko/pkg/types"
 	"github.com/demodesk/neko/pkg/types/codec"
@@ -340,7 +341,15 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 		session:    session,
 		metrics:    metrics,
 		connection: connection,
-		estimator:  estimator,
+		// bandwidth estimator
+		estimator:      estimator,
+		bitrateHistory: estimate.NewBitrateHistory(),
+		estimateTrend: estimate.NewTrendDetector(
+			estimate.TrendDetectorParams{
+				RequiredSamples:        3,
+				DownwardTrendThreshold: 0.0,
+				CollapseValues:         false,
+			}),
 		// stream selectors
 		videoSelector: manager.capture.Video(),
 		// tracks & channels

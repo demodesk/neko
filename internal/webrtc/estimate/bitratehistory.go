@@ -1,4 +1,4 @@
-package webrtc
+package estimate
 
 import (
 	"math"
@@ -6,9 +6,13 @@ import (
 	"time"
 )
 
-type queue struct {
+type BitrateHistory struct {
 	sync.Mutex
 	q []elem
+}
+
+func NewBitrateHistory() *BitrateHistory {
+	return &BitrateHistory{}
 }
 
 type elem struct {
@@ -16,7 +20,7 @@ type elem struct {
 	bitrate int
 }
 
-func (q *queue) push(v elem) {
+func (q *BitrateHistory) push(v elem) {
 	q.Lock()
 	defer q.Unlock()
 
@@ -27,13 +31,13 @@ func (q *queue) push(v elem) {
 	q.q = append(q.q, v)
 }
 
-func (q *queue) len() int {
+func (q *BitrateHistory) len() int {
 	q.Lock()
 	defer q.Unlock()
 	return len(q.q)
 }
 
-func (q *queue) avg() int {
+func (q *BitrateHistory) avg() int {
 	q.Lock()
 	defer q.Unlock()
 	if len(q.q) == 0 {
@@ -46,7 +50,7 @@ func (q *queue) avg() int {
 	return sum / len(q.q)
 }
 
-func (q *queue) avgLastN(n int) int {
+func (q *BitrateHistory) avgLastN(n int) int {
 	if n <= 0 {
 		return q.avg()
 	}
@@ -62,7 +66,7 @@ func (q *queue) avgLastN(n int) int {
 	return sum / n
 }
 
-func (q *queue) normaliseBitrate(currentBitrate int) int {
+func (q *BitrateHistory) Normalise(currentBitrate int) int {
 	avgBitrate := float64(q.avg())
 	histLen := float64(q.len())
 

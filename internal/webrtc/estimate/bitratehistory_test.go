@@ -1,10 +1,10 @@
-package webrtc
+package estimate
 
 import "testing"
 
 func Queue_normaliseBitrate(t *testing.T) {
 	type fields struct {
-		queue *queue
+		queue *BitrateHistory
 	}
 	type args struct {
 		currentBitrate int
@@ -18,7 +18,7 @@ func Queue_normaliseBitrate(t *testing.T) {
 		{
 			name: "normaliseBitrate: big drop",
 			fields: fields{
-				queue: &queue{
+				queue: &BitrateHistory{
 					q: []elem{
 						{bitrate: 900},
 						{bitrate: 750},
@@ -41,7 +41,7 @@ func Queue_normaliseBitrate(t *testing.T) {
 		}, {
 			name: "normaliseBitrate: small drop",
 			fields: fields{
-				queue: &queue{
+				queue: &BitrateHistory{
 					q: []elem{
 						{bitrate: 900},
 						{bitrate: 750},
@@ -64,7 +64,7 @@ func Queue_normaliseBitrate(t *testing.T) {
 		}, {
 			name: "normaliseBitrate",
 			fields: fields{
-				queue: &queue{
+				queue: &BitrateHistory{
 					q: []elem{
 						{bitrate: 900},
 						{bitrate: 750},
@@ -90,7 +90,7 @@ func Queue_normaliseBitrate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := tt.fields.queue
 			for i := 0; i < len(tt.want); i++ {
-				if got := m.normaliseBitrate(tt.args.currentBitrate); got != tt.want[i] {
+				if got := m.Normalise(tt.args.currentBitrate); got != tt.want[i] {
 					t.Errorf("normaliseBitrate() [%d] = %v, want %v", i, got, tt.want[i])
 				}
 			}

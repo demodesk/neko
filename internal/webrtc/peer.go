@@ -12,6 +12,7 @@ import (
 	"github.com/pion/webrtc/v3"
 	"github.com/rs/zerolog"
 
+	"github.com/demodesk/neko/internal/webrtc/estimate"
 	"github.com/demodesk/neko/internal/webrtc/payload"
 	"github.com/demodesk/neko/pkg/types"
 	"github.com/demodesk/neko/pkg/types/event"
@@ -20,7 +21,7 @@ import (
 
 const (
 	// how often to read and process bandwidth estimation reports
-	estimatorReadInterval = 250 * time.Millisecond
+	estimatorReadInterval = 1250 * time.Millisecond
 )
 
 type WebRTCPeerCtx struct {
@@ -31,7 +32,8 @@ type WebRTCPeerCtx struct {
 	connection *webrtc.PeerConnection
 	// bandwidth estimator
 	estimator      cc.BandwidthEstimator
-	bitrateHistory queue
+	bitrateHistory *estimate.BitrateHistory
+	estimateTrend  *estimate.TrendDetector
 	// stream selectors
 	videoSelector types.StreamSelectorManager
 	// tracks & channels
@@ -139,11 +141,15 @@ func (peer *WebRTCPeerCtx) estimatorReader() {
 			continue
 		}
 
-		bitrate := peer.bitrateHistory.normaliseBitrate(targetBitrate)
+		bitrate := peer.bitrateHistory.Normalise(targetBitrate)
+		peer.estimateTrend.AddValue(int64(bitrate))
+
+		direction := peer.estimateTrend.GetDirection()
 
 		peer.logger.Debug().
 			Int("target_bitrate", targetBitrate).
 			Int("normalized_bitrate", bitrate).
+			Str("direction", direction.String()).
 			Msg("got bitrate from estimator")
 
 		err := peer.SetVideo(types.StreamSelector{
