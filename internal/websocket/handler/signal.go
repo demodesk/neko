@@ -36,9 +36,10 @@ func (h *MessageHandlerCtx) signalRequest(session types.Session, payload *messag
 
 		// TODO: Refactor
 		err := peer.SetVideo(types.StreamSelector{
-			ID:             payload.Video,
-			Bitrate:        uint64(payload.Bitrate),
-			BitrateNearest: true,
+			ID:      payload.Video,
+			Bitrate: uint64(payload.Bitrate),
+			// if the exact video is not found, use nearest video
+			Type: types.StreamSelectorTypeNearest,
 		})
 		if err != nil {
 			return err
@@ -144,9 +145,10 @@ func (h *MessageHandlerCtx) signalVideo(session types.Session, payload *message.
 	if payload.Video != "" && payload.Bitrate == 0 {
 		// TODO: Refactor
 		return peer.SetVideo(types.StreamSelector{
-			ID:             payload.Video,
-			Bitrate:        uint64(payload.Bitrate),
-			BitrateNearest: true,
+			ID:      payload.Video,
+			Bitrate: uint64(payload.Bitrate),
+			// if the exact video is not found, use nearest video
+			Type: types.StreamSelectorTypeNearest,
 		})
 	}
 

@@ -1,5 +1,5 @@
 // From https://github.com/livekit/livekit/blob/master/pkg/sfu/streamallocator/trenddetector.go
-package estimate
+package utils
 
 import (
 	"fmt"

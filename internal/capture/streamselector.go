@@ -69,6 +69,40 @@ func (manager *StreamSelectorManagerCtx) Codec() codec.RTPCodec {
 func (manager *StreamSelectorManagerCtx) GetStream(selector types.StreamSelector) (types.StreamSinkManager, bool) {
 	// select stream by ID
 	if selector.ID != "" {
+		// select lower stream
+		if selector.Type == types.StreamSelectorTypeLower {
+			var lastStream types.StreamSinkManager
+			for i := len(manager.streamIDs) - 1; i >= 0; i-- {
+				streamID := manager.streamIDs[i]
+				if streamID == selector.ID {
+					return lastStream, lastStream != nil
+				}
+				stream, ok := manager.streams[streamID]
+				if ok {
+					lastStream = stream
+				}
+			}
+			// we couldn't find a lower stream
+			return nil, false
+		}
+
+		// select higher stream
+		if selector.Type == types.StreamSelectorTypeHigher {
+			var lastStream types.StreamSinkManager
+			for _, streamID := range manager.streamIDs {
+				if streamID == selector.ID {
+					return lastStream, lastStream != nil
+				}
+				stream, ok := manager.streams[streamID]
+				if ok {
+					lastStream = stream
+				}
+			}
+			// we couldn't find a higher stream
+			return nil, false
+		}
+
+		// select exact stream
 		stream, ok := manager.streams[selector.ID]
 		return stream, ok
 	}
@@ -76,8 +110,39 @@ func (manager *StreamSelectorManagerCtx) GetStream(selector types.StreamSelector
 	// select stream by bitrate
 	if selector.Bitrate != 0 {
 		// select stream by nearest bitrate
-		if selector.BitrateNearest {
+		if selector.Type == types.StreamSelectorTypeNearest {
 			return manager.nearestBitrate(selector.Bitrate), true
+		}
+
+		// select lower stream
+		if selector.Type == types.StreamSelectorTypeLower {
+			// start from the highest stream, and go down, until we find a lower stream
+			for i := len(manager.streamIDs) - 1; i >= 0; i-- {
+				streamID := manager.streamIDs[i]
+				stream := manager.streams[streamID]
+				// if stream should be considered in calculation
+				considered := stream.Bitrate() != 0 && stream.Started()
+				if considered && stream.Bitrate() < selector.Bitrate {
+					return stream, true
+				}
+			}
+			// we couldn't find a lower stream
+			return nil, false
+		}
+
+		// select higher stream
+		if selector.Type == types.StreamSelectorTypeHigher {
+			// start from the lowest stream, and go up, until we find a higher stream
+			for _, streamID := range manager.streamIDs {
+				stream := manager.streams[streamID]
+				// if stream should be considered in calculation
+				considered := stream.Bitrate() != 0 && stream.Started()
+				if considered && stream.Bitrate() > selector.Bitrate {
+					return stream, true
+				}
+			}
+			// we couldn't find a higher stream
+			return nil, false
 		}
 
 		// select stream by exact bitrate
@@ -92,6 +157,7 @@ func (manager *StreamSelectorManagerCtx) GetStream(selector types.StreamSelector
 	return nil, false
 }
 
+// TODO: This is a very naive implementation, we should use a binary search instead.
 func (manager *StreamSelectorManagerCtx) nearestBitrate(bitrate uint64) types.StreamSinkManager {
 	type streamDiff struct {
 		id          string
@@ -114,9 +180,9 @@ func (manager *StreamSelectorManagerCtx) nearestBitrate(bitrate uint64) types.St
 	var diffs []streamDiff
 
 	for _, stream := range manager.streams {
-		// TODO: If we don't have a bitrate yet, we can't compare it.
-		bitrate := stream.Bitrate()
-		if bitrate == 0 {
+		// if stream should be considered in calculation
+		considered := stream.Bitrate() != 0 && stream.Started()
+		if !considered {
 			continue
 		}
 		diffs = append(diffs, streamDiff{
@@ -127,7 +193,7 @@ func (manager *StreamSelectorManagerCtx) nearestBitrate(bitrate uint64) types.St
 
 	// no streams available
 	if len(diffs) == 0 {
-		// return first stream
+		// return first (lowest) stream
 		return manager.streams[manager.streamIDs[0]]
 	}
 

@@ -44,13 +44,61 @@ type ScreencastManager interface {
 	Image() ([]byte, error)
 }
 
+type StreamSelectorType int
+
+const (
+	// select exact stream
+	StreamSelectorTypeExact StreamSelectorType = iota
+	// select nearest stream (in either direction) if exact stream is not available
+	StreamSelectorTypeNearest
+	// if exact stream is found select the next lower stream, otherwise select the nearest lower stream
+	StreamSelectorTypeLower
+	// if exact stream is found select the next higher stream, otherwise select the nearest higher stream
+	StreamSelectorTypeHigher
+)
+
+func (s StreamSelectorType) String() string {
+	switch s {
+	case StreamSelectorTypeExact:
+		return "exact"
+	case StreamSelectorTypeNearest:
+		return "nearest"
+	case StreamSelectorTypeLower:
+		return "lower"
+	case StreamSelectorTypeHigher:
+		return "higher"
+	default:
+		return fmt.Sprintf("%d", int(s))
+	}
+}
+
+func (s *StreamSelectorType) UnmarshalText(text []byte) error {
+	switch strings.ToLower(string(text)) {
+	case "exact", "":
+		*s = StreamSelectorTypeExact
+	case "nearest":
+		*s = StreamSelectorTypeNearest
+	case "lower":
+		*s = StreamSelectorTypeLower
+	case "higher":
+		*s = StreamSelectorTypeHigher
+	default:
+		return fmt.Errorf("invalid stream selector type: %s", string(text))
+	}
+	return nil
+}
+
+func (s StreamSelectorType) MarshalText() ([]byte, error) {
+	return []byte(s.String()), nil
+}
+
 type StreamSelector struct {
+	// type of stream selector
+	Type StreamSelectorType
 	// select stream by its ID
 	ID string
 	// select stream by its bitrate
 	Bitrate uint64
-	// if no stream with exact bitrate is found, select stream with nearest bitrate
-	BitrateNearest bool
 }
 
 type StreamSelectorManager interface {
