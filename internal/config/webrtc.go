@@ -3,6 +3,7 @@ package config
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -20,6 +21,21 @@ type WebRTCEstimator struct {
 	Passive        bool
 	Debug          bool
 	InitialBitrate int
+
+	// how often to read and process bandwidth estimation reports
+	ReadInterval time.Duration
+	// how long to wait for stable bandwidth estimation before upgrading
+	StableDuration time.Duration
+	// how long to wait for unstable bandwidth estimation before downgrading
+	UnstableDuration time.Duration
+	// how long to wait for stalled bandwidth estimation before downgrading
+	StalledDuration time.Duration
+	// how long to wait before downgrading again after previous downgrade
+	DowngradeBackoff time.Duration
+	// how long to wait before upgrading again after previous upgrade
+	UpgradeBackoff time.Duration
+	// how bigger the difference between estimated and stream bitrate must be to trigger upgrade/downgrade
+	DiffThreshold float64
 }
 
 type WebRTC struct {
@@ -108,6 +124,41 @@ func (WebRTC) Init(cmd *cobra.Command) error {
 
 	cmd.PersistentFlags().Int("webrtc.estimator.initial_bitrate", 1_000_000, "initial bitrate for the bandwidth estimator")
 	if err := viper.BindPFlag("webrtc.estimator.initial_bitrate", cmd.PersistentFlags().Lookup("webrtc.estimator.initial_bitrate")); err != nil {
+		return err
+	}
+
+	cmd.PersistentFlags().Duration("webrtc.estimator.read_interval", 1250*time.Millisecond, "how often to read and process bandwidth estimation reports")
+	if err := viper.BindPFlag("webrtc.estimator.read_interval", cmd.PersistentFlags().Lookup("webrtc.estimator.read_interval")); err != nil {
+		return err
+	}
+
+	cmd.PersistentFlags().Duration("webrtc.estimator.stable_duration", 5*time.Second, "how long to wait for stable bandwidth estimation before upgrading")
+	if err := viper.BindPFlag("webrtc.estimator.stable_duration", cmd.PersistentFlags().Lookup("webrtc.estimator.stable_duration")); err != nil {
+		return err
+	}
+
+	cmd.PersistentFlags().Duration("webrtc.estimator.unstable_duration", 5*time.Second, "how long to wait for unstable bandwidth estimation before downgrading")
+	if err := viper.BindPFlag("webrtc.estimator.unstable_duration", cmd.PersistentFlags().Lookup("webrtc.estimator.unstable_duration")); err != nil {
+		return err
+	}
+
+	cmd.PersistentFlags().Duration("webrtc.estimator.stalled_duration", 5*time.Second, "how long to wait for stalled bandwidth estimation before downgrading")
+	if err := viper.BindPFlag("webrtc.estimator.stalled_duration", cmd.PersistentFlags().Lookup("webrtc.estimator.stalled_duration")); err != nil {
+		return err
+	}
+
+	cmd.PersistentFlags().Duration("webrtc.estimator.downgrade_backoff", 5*time.Second, "how long to wait before downgrading again after previous downgrade")
+	if err := viper.BindPFlag("webrtc.estimator.downgrade_backoff", cmd.PersistentFlags().Lookup("webrtc.estimator.downgrade_backoff")); err != nil {
+		return err
+	}
+
+	cmd.PersistentFlags().Duration("webrtc.estimator.upgrade_backoff", 5*time.Second, "how long to wait before upgrading again after previous upgrade")
+	if err := viper.BindPFlag("webrtc.estimator.upgrade_backoff", cmd.PersistentFlags().Lookup("webrtc.estimator.upgrade_backoff")); err != nil {
+		return err
+	}
+
+	cmd.PersistentFlags().Float64("webrtc.estimator.diff_threshold", 0.1, "how bigger the difference between estimated and stream bitrate must be to trigger upgrade/downgrade")
+	if err := viper.BindPFlag("webrtc.estimator.diff_threshold", cmd.PersistentFlags().Lookup("webrtc.estimator.diff_threshold")); err != nil {
 		return err
 	}
 
@@ -211,4 +262,11 @@ func (s *WebRTC) Set() {
 	s.Estimator.Passive = viper.GetBool("webrtc.estimator.passive")
 	s.Estimator.Debug = viper.GetBool("webrtc.estimator.debug")
 	s.Estimator.InitialBitrate = viper.GetInt("webrtc.estimator.initial_bitrate")
+	s.Estimator.ReadInterval = viper.GetDuration("webrtc.estimator.read_interval")
+	s.Estimator.StableDuration = viper.GetDuration("webrtc.estimator.stable_duration")
+	s.Estimator.UnstableDuration = viper.GetDuration("webrtc.estimator.unstable_duration")
+	s.Estimator.StalledDuration = viper.GetDuration("webrtc.estimator.stalled_duration")
+	s.Estimator.DowngradeBackoff = viper.GetDuration("webrtc.estimator.downgrade_backoff")
+	s.Estimator.UpgradeBackoff = viper.GetDuration("webrtc.estimator.upgrade_backoff")
+	s.Estimator.DiffThreshold = viper.GetFloat64("webrtc.estimator.diff_threshold")
 }
