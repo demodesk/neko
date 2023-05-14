@@ -23,6 +23,8 @@ const (
 	estimatorReadInterval = 1250 * time.Millisecond
 	// how long to wait for stable bandwidth estimation before upgrading
 	estimatorStableDuration = 5 * time.Second
+	// how long to wait for unstable bandwidth estimation before downgrading
+	estimatorUnstableDuration = 5 * time.Second
 	// how long to wait before downgrading again after previous downgrade
 	estimatorDowngradeBackoff = 5 * time.Second
 	// how long to wait before upgrading again after previous upgrade
@@ -52,6 +54,7 @@ type WebRTCPeerCtx struct {
 
 	currentStreamID            string
 	estimatorStableSince       time.Time
+	estimatorUnstableSince     time.Time
 	estimatorLastUpgradeTime   time.Time
 	estimatorLastDowngradeTime time.Time
 }
@@ -180,6 +183,11 @@ func (peer *WebRTCPeerCtx) estimatorReader() {
 				continue
 			}
 
+			// if we are not unstable but we fluctuate we should wait for some more time
+			if time.Since(peer.estimatorUnstableSince) < estimatorUnstableDuration {
+				continue
+			}
+
 			err := peer.SetVideo(types.StreamSelector{
 				ID:   peer.currentStreamID,
 				Type: types.StreamSelectorTypeLower,
@@ -190,6 +198,9 @@ func (peer *WebRTCPeerCtx) estimatorReader() {
 			peer.estimatorLastDowngradeTime = time.Now()
 			continue
 		}
+
+		// we reset the unstable time because we are not congesting
+		peer.estimatorUnstableSince = time.Now()
 
 		// if we have a neutral or upward trend, that means our estimate is stable
 		// if we are on the highest stream, we don't need to do anything
