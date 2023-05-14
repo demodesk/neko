@@ -11,6 +11,7 @@ import (
 	"github.com/pion/webrtc/v3"
 	"github.com/rs/zerolog"
 
+	"github.com/demodesk/neko/internal/config"
 	"github.com/demodesk/neko/internal/webrtc/payload"
 	"github.com/demodesk/neko/pkg/types"
 	"github.com/demodesk/neko/pkg/types/event"
@@ -29,6 +30,8 @@ const (
 	estimatorDowngradeBackoff = 5 * time.Second
 	// how long to wait before upgrading again after previous upgrade
 	estimatorUpgradeBackoff = 5 * time.Second
+	// how bigger the difference between estimated and stream bitrate must be to trigger upgrade/downgrade
+	estimatorDiffThreshold = 0.1
 )
 
 type WebRTCPeerCtx struct {
@@ -48,11 +51,11 @@ type WebRTCPeerCtx struct {
 	dataChannel *webrtc.DataChannel
 	rtcpChannel chan []rtcp.Packet
 	// config
-	iceTrickle       bool
-	estimatorPassive bool
-	videoAuto        bool
+	iceTrickle      bool
+	estimatorConfig config.WebRTCEstimator
 
-	currentStreamID            string
+	videoAuto bool
+
 	estimatorStableSince       time.Time
 	estimatorUnstableSince     time.Time
 	estimatorLastUpgradeTime   time.Time
@@ -132,6 +135,14 @@ func (peer *WebRTCPeerCtx) Destroy() {
 }
 
 func (peer *WebRTCPeerCtx) estimatorReader() {
+	// if estimator is not in debug mode, use a nop logger
+	var debugLogger zerolog.Logger
+	if peer.estimatorConfig.Debug {
+		debugLogger = peer.logger.With().Str("component", "estimator").Logger().Level(zerolog.DebugLevel)
+	} else {
+		debugLogger = zerolog.Nop()
+	}
+
 	// if estimator is disabled, do nothing
 	if peer.estimator == nil {
 		return
@@ -154,7 +165,7 @@ func (peer *WebRTCPeerCtx) estimatorReader() {
 		}
 
 		// if estimation is disabled, do nothing
-		if !peer.videoAuto || peer.estimatorPassive {
+		if !peer.videoAuto || peer.estimatorConfig.Passive {
 			continue
 		}
 
@@ -162,15 +173,29 @@ func (peer *WebRTCPeerCtx) estimatorReader() {
 		peer.estimateTrend.AddValue(int64(targetBitrate))
 		direction := peer.estimateTrend.GetDirection()
 
-		peer.logger.Debug().
-			Int("target_bitrate", targetBitrate).
-			Str("direction", direction.String()).
-			Msg("got bitrate from estimator")
-
-		if peer.currentStreamID == "" {
-			peer.logger.Debug().Msg("looks like we don't have a stream yet, skipping bitrate estimation")
+		// get current stream bitrate
+		stream, ok := peer.videoTrack.Stream()
+		if !ok {
+			debugLogger.Warn().Msg("looks like we don't have a stream yet, skipping bitrate estimation")
 			continue
 		}
+
+		// if stream bitrate is 0, we need to wait for some time until we get a valid value
+		streamId, streamBitrate := stream.ID(), stream.Bitrate()
+		if streamBitrate == 0 {
+			debugLogger.Warn().Msg("looks like stream bitrate is 0, we need to wait for some time")
+			continue
+		}
+
+		// check whats the difference between target and stream bitrate
+		diff := float64(targetBitrate) / float64(streamBitrate)
+
+		debugLogger.Info().
+			Float64("diff", diff).
+			Int("target_bitrate", targetBitrate).
+			Uint64("stream_bitrate", streamBitrate).
+			Str("direction", direction.String()).
+			Msg("got bitrate from estimator")
 
 		// if we have an downward trend, we might be congesting
 		// if we are on the lowest stream, we can't do anything
@@ -180,22 +205,43 @@ func (peer *WebRTCPeerCtx) estimatorReader() {
 
 			// if we downgraded recently, we wait for some more time
 			if time.Since(peer.estimatorLastDowngradeTime) < estimatorDowngradeBackoff {
+				debugLogger.Debug().
+					Time("last_downgrade", peer.estimatorLastDowngradeTime).
+					Msgf("downgraded recently, waiting for at least %v", estimatorDowngradeBackoff)
 				continue
 			}
 
 			// if we are not unstable but we fluctuate we should wait for some more time
 			if time.Since(peer.estimatorUnstableSince) < estimatorUnstableDuration {
+				debugLogger.Debug().
+					Time("unstable_since", peer.estimatorUnstableSince).
+					Msgf("we are not unstable long enough, waiting for at least %v", estimatorUnstableDuration)
+				continue
+			}
+
+			// if we still have a big difference between target and stream bitrate, we wait for some more time
+			if estimatorDiffThreshold >= 0 && diff > 1+estimatorDiffThreshold {
+				debugLogger.Debug().
+					Float64("diff", diff).
+					Float64("threshold", estimatorDiffThreshold).
+					Msgf("we still have a big difference between target and stream bitrate, therefore we still should be able to accomodate current stream")
 				continue
 			}
 
 			err := peer.SetVideo(types.StreamSelector{
-				ID:   peer.currentStreamID,
+				ID:   streamId,
 				Type: types.StreamSelectorTypeLower,
 			})
 			if err != nil && err != types.ErrWebRTCStreamNotFound {
 				peer.logger.Warn().Err(err).Msg("failed to downgrade video stream")
 			}
 			peer.estimatorLastDowngradeTime = time.Now()
+
+			if err == types.ErrWebRTCStreamNotFound {
+				debugLogger.Info().Msg("looks like we are already on the lowest stream")
+			} else {
+				debugLogger.Info().Msg("downgraded video stream")
+			}
 			continue
 		}
 
@@ -208,23 +254,44 @@ func (peer *WebRTCPeerCtx) estimatorReader() {
 
 		// if we upgraded recently, we wait for some more time
 		if time.Since(peer.estimatorLastUpgradeTime) < estimatorUpgradeBackoff {
+			debugLogger.Debug().
+				Time("last_upgrade", peer.estimatorLastUpgradeTime).
+				Msgf("upgraded recently, waiting for at least %v", estimatorUpgradeBackoff)
 			continue
 		}
 
 		// if we are not stable for long enough, we wait for some more time
 		// because bandwidth estimation might fluctuate
 		if time.Since(peer.estimatorStableSince) < estimatorStableDuration {
+			debugLogger.Debug().
+				Time("stable_since", peer.estimatorStableSince).
+				Msgf("we are not stable long enough, waiting for at least %v", estimatorStableDuration)
+			continue
+		}
+
+		// upgrade only if estimated bitrate passed the threshold
+		if estimatorDiffThreshold >= 0 && diff < 1+estimatorDiffThreshold {
+			debugLogger.Debug().
+				Float64("diff", diff).
+				Float64("threshold", estimatorDiffThreshold).
+				Msgf("looks like we don't have enough bitrate to accomodate higher stream, therefore we should wait for some more time")
 			continue
 		}
 
 		err := peer.SetVideo(types.StreamSelector{
-			ID:   peer.currentStreamID,
+			ID:   streamId,
 			Type: types.StreamSelectorTypeHigher,
 		})
 		if err != nil && err != types.ErrWebRTCStreamNotFound {
 			peer.logger.Warn().Err(err).Msg("failed to upgrade video stream")
 		}
 		peer.estimatorLastUpgradeTime = time.Now()
+
+		if err == types.ErrWebRTCStreamNotFound {
+			debugLogger.Info().Msg("looks like we are already on the highest stream")
+		} else {
+			debugLogger.Info().Msg("upgraded video stream")
+		}
 	}
 }
 
@@ -254,7 +321,6 @@ func (peer *WebRTCPeerCtx) SetVideo(selector types.StreamSelector) error {
 	}
 
 	videoID := peer.videoTrack.stream.ID()
-	peer.currentStreamID = videoID
 	bitrate := peer.videoTrack.stream.Bitrate()
 
 	peer.metrics.SetVideoID(videoID)
@@ -315,7 +381,7 @@ func (peer *WebRTCPeerCtx) SetVideoAuto(videoAuto bool) {
 	defer peer.mu.Unlock()
 
 	// if estimator is enabled and is not passive, enable video auto bitrate
-	if peer.estimator != nil && !peer.estimatorPassive {
+	if peer.estimator != nil && !peer.estimatorConfig.Passive {
 		peer.logger.Info().Bool("video_auto", videoAuto).Msg("set video auto")
 		peer.videoAuto = videoAuto
 	} else {

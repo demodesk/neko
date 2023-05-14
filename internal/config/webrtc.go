@@ -15,6 +15,13 @@ import (
 // default stun server
 const defStunSrv = "stun:stun.l.google.com:19302"
 
+type WebRTCEstimator struct {
+	Enabled        bool
+	Passive        bool
+	Debug          bool
+	InitialBitrate int
+}
+
 type WebRTC struct {
 	ICELite            bool
 	ICETrickle         bool
@@ -28,9 +35,7 @@ type WebRTC struct {
 	NAT1To1IPs     []string
 	IpRetrievalUrl string
 
-	EstimatorEnabled        bool
-	EstimatorPassive        bool
-	EstimatorInitialBitrate int
+	Estimator WebRTCEstimator
 }
 
 func (WebRTC) Init(cmd *cobra.Command) error {
@@ -93,6 +98,11 @@ func (WebRTC) Init(cmd *cobra.Command) error {
 
 	cmd.PersistentFlags().Bool("webrtc.estimator.passive", false, "passive estimator mode, when it does not switch pipelines, only estimates")
 	if err := viper.BindPFlag("webrtc.estimator.passive", cmd.PersistentFlags().Lookup("webrtc.estimator.passive")); err != nil {
+		return err
+	}
+
+	cmd.PersistentFlags().Bool("webrtc.estimator.debug", false, "enables debug logging for the bandwidth estimator")
+	if err := viper.BindPFlag("webrtc.estimator.debug", cmd.PersistentFlags().Lookup("webrtc.estimator.debug")); err != nil {
 		return err
 	}
 
@@ -197,7 +207,8 @@ func (s *WebRTC) Set() {
 
 	// bandwidth estimator
 
-	s.EstimatorEnabled = viper.GetBool("webrtc.estimator.enabled")
-	s.EstimatorPassive = viper.GetBool("webrtc.estimator.passive")
-	s.EstimatorInitialBitrate = viper.GetInt("webrtc.estimator.initial_bitrate")
+	s.Estimator.Enabled = viper.GetBool("webrtc.estimator.enabled")
+	s.Estimator.Passive = viper.GetBool("webrtc.estimator.passive")
+	s.Estimator.Debug = viper.GetBool("webrtc.estimator.debug")
+	s.Estimator.InitialBitrate = viper.GetInt("webrtc.estimator.initial_bitrate")
 }

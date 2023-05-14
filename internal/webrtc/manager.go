@@ -224,10 +224,10 @@ func (manager *WebRTCManagerCtx) newPeerConnection(logger zerolog.Logger, codecs
 
 	// create bandwidth estimator
 	estimatorChan := make(chan cc.BandwidthEstimator, 1)
-	if manager.config.EstimatorEnabled {
+	if manager.config.Estimator.Enabled {
 		congestionController, err := cc.NewInterceptor(func() (cc.BandwidthEstimator, error) {
 			return gcc.NewSendSideBWE(
-				gcc.SendSideBWEInitialBitrate(manager.config.EstimatorInitialBitrate),
+				gcc.SendSideBWEInitialBitrate(manager.config.Estimator.InitialBitrate),
 				gcc.SendSideBWEPacer(gcc.NewNoOpPacer()),
 			)
 		})
@@ -362,8 +362,8 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 		dataChannel: dataChannel,
 		rtcpChannel: videoRtcp,
 		// config
-		iceTrickle:       manager.config.ICETrickle,
-		estimatorPassive: manager.config.EstimatorPassive,
+		iceTrickle:      manager.config.ICETrickle,
+		estimatorConfig: manager.config.Estimator,
 	}
 
 	connection.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
