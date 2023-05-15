@@ -24,11 +24,11 @@ type WebRTCEstimator struct {
 
 	// how often to read and process bandwidth estimation reports
 	ReadInterval time.Duration
-	// how long to wait for stable bandwidth estimation before upgrading
+	// how long to wait for stable connection (only neutral or upward trend) before upgrading
 	StableDuration time.Duration
-	// how long to wait for unstable bandwidth estimation before downgrading
+	// how long to wait for unstable connection (downward trend) before downgrading
 	UnstableDuration time.Duration
-	// how long to wait for stalled bandwidth estimation before downgrading
+	// how long to wait for stalled connection (neutral trend with low bandwidth) before downgrading
 	StalledDuration time.Duration
 	// how long to wait before downgrading again after previous downgrade
 	DowngradeBackoff time.Duration
@@ -127,27 +127,27 @@ func (WebRTC) Init(cmd *cobra.Command) error {
 		return err
 	}
 
-	cmd.PersistentFlags().Duration("webrtc.estimator.read_interval", 1250*time.Millisecond, "how often to read and process bandwidth estimation reports")
+	cmd.PersistentFlags().Duration("webrtc.estimator.read_interval", 2*time.Second, "how often to read and process bandwidth estimation reports")
 	if err := viper.BindPFlag("webrtc.estimator.read_interval", cmd.PersistentFlags().Lookup("webrtc.estimator.read_interval")); err != nil {
 		return err
 	}
 
-	cmd.PersistentFlags().Duration("webrtc.estimator.stable_duration", 5*time.Second, "how long to wait for stable bandwidth estimation before upgrading")
+	cmd.PersistentFlags().Duration("webrtc.estimator.stable_duration", 12*time.Second, "how long to wait for stable connection (upward or neutral trend) before upgrading")
 	if err := viper.BindPFlag("webrtc.estimator.stable_duration", cmd.PersistentFlags().Lookup("webrtc.estimator.stable_duration")); err != nil {
 		return err
 	}
 
-	cmd.PersistentFlags().Duration("webrtc.estimator.unstable_duration", 5*time.Second, "how long to wait for unstable bandwidth estimation before downgrading")
+	cmd.PersistentFlags().Duration("webrtc.estimator.unstable_duration", 6*time.Second, "how long to wait for stalled connection (neutral trend with low bandwidth) before downgrading")
 	if err := viper.BindPFlag("webrtc.estimator.unstable_duration", cmd.PersistentFlags().Lookup("webrtc.estimator.unstable_duration")); err != nil {
 		return err
 	}
 
-	cmd.PersistentFlags().Duration("webrtc.estimator.stalled_duration", 5*time.Second, "how long to wait for stalled bandwidth estimation before downgrading")
+	cmd.PersistentFlags().Duration("webrtc.estimator.stalled_duration", 24*time.Second, "how long to wait for stalled bandwidth estimation before downgrading")
 	if err := viper.BindPFlag("webrtc.estimator.stalled_duration", cmd.PersistentFlags().Lookup("webrtc.estimator.stalled_duration")); err != nil {
 		return err
 	}
 
-	cmd.PersistentFlags().Duration("webrtc.estimator.downgrade_backoff", 5*time.Second, "how long to wait before downgrading again after previous downgrade")
+	cmd.PersistentFlags().Duration("webrtc.estimator.downgrade_backoff", 10*time.Second, "how long to wait before downgrading again after previous downgrade")
 	if err := viper.BindPFlag("webrtc.estimator.downgrade_backoff", cmd.PersistentFlags().Lookup("webrtc.estimator.downgrade_backoff")); err != nil {
 		return err
 	}
@@ -157,7 +157,7 @@ func (WebRTC) Init(cmd *cobra.Command) error {
 		return err
 	}
 
-	cmd.PersistentFlags().Float64("webrtc.estimator.diff_threshold", 0.1, "how bigger the difference between estimated and stream bitrate must be to trigger upgrade/downgrade")
+	cmd.PersistentFlags().Float64("webrtc.estimator.diff_threshold", 0.15, "how bigger the difference between estimated and stream bitrate must be to trigger upgrade/downgrade")
 	if err := viper.BindPFlag("webrtc.estimator.diff_threshold", cmd.PersistentFlags().Lookup("webrtc.estimator.diff_threshold")); err != nil {
 		return err
 	}
