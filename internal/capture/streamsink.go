@@ -78,7 +78,7 @@ func streamSinkNew(codec codec.RTPCodec, pipelineFn func() (string, error), id s
 			Subsystem: "capture",
 			Help:      "Current number of listeners for a pipeline.",
 			ConstLabels: map[string]string{
-				"video_id":   id, // TODO: id only?
+				"video_id":   id,
 				"codec_name": codec.Name,
 				"codec_type": codec.Type.String(),
 			},
@@ -89,7 +89,7 @@ func streamSinkNew(codec codec.RTPCodec, pipelineFn func() (string, error), id s
 			Subsystem: "capture",
 			Help:      "Total number of bytes created by the pipeline.",
 			ConstLabels: map[string]string{
-				"video_id":   id, // TODO: id only?
+				"video_id":   id,
 				"codec_name": codec.Name,
 				"codec_type": codec.Type.String(),
 			},
@@ -101,7 +101,7 @@ func streamSinkNew(codec codec.RTPCodec, pipelineFn func() (string, error), id s
 			Help:      "Total number of created pipelines.",
 			ConstLabels: map[string]string{
 				"submodule":  "streamsink",
-				"video_id":   id, // TODO: id only?
+				"video_id":   id,
 				"codec_name": codec.Name,
 				"codec_type": codec.Type.String(),
 			},
@@ -113,7 +113,7 @@ func streamSinkNew(codec codec.RTPCodec, pipelineFn func() (string, error), id s
 			Help:      "Total number of active pipelines.",
 			ConstLabels: map[string]string{
 				"submodule":  "streamsink",
-				"video_id":   id, // TODO: id only?
+				"video_id":   id,
 				"codec_name": codec.Name,
 				"codec_type": codec.Type.String(),
 			},
