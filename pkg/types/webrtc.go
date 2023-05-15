@@ -18,11 +18,6 @@ type ICEServer struct {
 	Credential string   `mapstructure:"credential" json:"credential,omitempty"`
 }
 
-type VideoTrack struct {
-	ID      string `json:"id"`
-	Bitrate uint64 `json:"bitrate"`
-}
-
 type WebRTCPeer interface {
 	CreateOffer(ICERestart bool) (*webrtc.SessionDescription, error)
 	CreateAnswer() (*webrtc.SessionDescription, error)
@@ -30,7 +25,7 @@ type WebRTCPeer interface {
 	SetCandidate(webrtc.ICECandidateInit) error
 
 	SetVideo(StreamSelector) error
-	Video() VideoTrack
+	VideoID() (string, bool)
 	SetPaused(isPaused bool) error
 	Paused() bool
 	SetVideoAuto(auto bool)

@@ -326,7 +326,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 	}
 
 	//
-	// TODO: set stream for video track?
+	// stream for video track will be set later
 	//
 
 	// data channel

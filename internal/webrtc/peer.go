@@ -338,22 +338,16 @@ func (peer *WebRTCPeerCtx) SetVideo(selector types.StreamSelector) error {
 	return nil
 }
 
-func (peer *WebRTCPeerCtx) Video() types.VideoTrack {
+func (peer *WebRTCPeerCtx) VideoID() (string, bool) {
 	peer.mu.Lock()
 	defer peer.mu.Unlock()
 
-	// TODO: Refactor.
 	stream, ok := peer.videoTrack.Stream()
 	if !ok {
-		// TODO: Refactor.
-		return types.VideoTrack{}
+		return "", false
 	}
 
-	// TODO: Refactor.
-	return types.VideoTrack{
-		ID:      stream.ID(),
-		Bitrate: stream.Bitrate(),
-	}
+	return stream.ID(), true
 }
 
 func (peer *WebRTCPeerCtx) SetPaused(isPaused bool) error {

@@ -14,7 +14,7 @@ func (h *MessageHandlerCtx) signalRequest(session types.Session, payload *messag
 		return errors.New("not allowed to watch")
 	}
 
-	// use default first video, if no video or bitrate is specified
+	// use default first video, if not provided
 	if payload.Video == "" {
 		videos := h.capture.Video().IDs()
 		payload.Video = videos[0]
