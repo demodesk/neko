@@ -15,39 +15,31 @@ func (h *MessageHandlerCtx) signalRequest(session types.Session, payload *messag
 	}
 
 	// use default first video, if no video or bitrate is specified
-	if payload.Video == "" && payload.Bitrate == 0 {
+	if payload.Video == "" {
 		videos := h.capture.Video().IDs()
 		payload.Video = videos[0]
 	}
 
-	offer, err := h.webrtc.CreatePeer(session)
+	offer, peer, err := h.webrtc.CreatePeer(session)
 	if err != nil {
 		return err
 	}
 
-	if peer := session.GetWebRTCPeer(); peer != nil {
-		// set webrtc as paused if session has private mode enabled
-		if session.PrivateModeEnabled() {
-			peer.SetPaused(true)
-		}
+	// set webrtc as paused if session has private mode enabled
+	if session.PrivateModeEnabled() {
+		peer.SetPaused(true)
+	}
 
-		// TODO: Set this when connecion is created?
-		peer.SetVideoAuto(payload.VideoAuto)
+	// set video auto state
+	peer.SetVideoAuto(payload.Auto)
 
-		// TODO: Refactor
-		err := peer.SetVideo(types.StreamSelector{
-			ID:      payload.Video,
-			Bitrate: uint64(payload.Bitrate),
-			// if the exact video is not found, use nearest video
-			Type: types.StreamSelectorTypeNearest,
-		})
-		if err != nil {
-			return err
-		}
-
-		// TODO: Refactor
-		payload.Video = peer.Video().ID
-		payload.VideoAuto = peer.VideoAuto()
+	// set video stream
+	err = peer.SetVideo(types.StreamSelector{
+		ID:   payload.Video,
+		Type: types.StreamSelectorTypeNearest,
+	})
+	if err != nil {
+		return err
 	}
 
 	session.Send(
@@ -55,10 +47,6 @@ func (h *MessageHandlerCtx) signalRequest(session types.Session, payload *messag
 		message.SignalProvide{
 			SDP:        offer.SDP,
 			ICEServers: h.webrtc.ICEServers(),
-			// TODO: Refactor
-			Video:     payload.Video,
-			Bitrate:   payload.Bitrate,
-			VideoAuto: payload.VideoAuto,
 		})
 
 	return nil
@@ -140,14 +128,11 @@ func (h *MessageHandlerCtx) signalVideo(session types.Session, payload *message.
 		return errors.New("webRTC peer does not exist")
 	}
 
-	peer.SetVideoAuto(payload.VideoAuto)
+	peer.SetVideoAuto(payload.Auto)
 
-	if payload.Video != "" && payload.Bitrate == 0 {
-		// TODO: Refactor
+	if payload.Video != "" {
 		return peer.SetVideo(types.StreamSelector{
-			ID:      payload.Video,
-			Bitrate: uint64(payload.Bitrate),
-			// if the exact video is not found, use nearest video
+			ID:   payload.Video,
 			Type: types.StreamSelectorTypeNearest,
 		})
 	}

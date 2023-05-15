@@ -265,7 +265,7 @@ func (manager *WebRTCManagerCtx) newPeerConnection(logger zerolog.Logger, codecs
 	return connection, <-estimatorChan, err
 }
 
-func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.SessionDescription, error) {
+func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.SessionDescription, types.WebRTCPeer, error) {
 	id := atomic.AddInt32(&manager.peerId, 1)
 
 	// get metrics for session
@@ -287,7 +287,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 	connection, estimator, err := manager.newPeerConnection(
 		logger, []codec.RTPCodec{audioCodec, videoCodec})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// asynchronously send local ICE Candidates
@@ -309,20 +309,20 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 	// audio track
 	audioTrack, err := NewTrack(logger, audioCodec, connection)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// set stream for audio track
 	_, err = audioTrack.SetStream(audio)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// video track
 	videoRtcp := make(chan []rtcp.Packet, 1)
 	videoTrack, err := NewTrack(logger, videoCodec, connection, WithRtcpChan(videoRtcp))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	//
@@ -333,7 +333,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 
 	dataChannel, err := connection.CreateDataChannel("data", nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	peer := &WebRTCPeerCtx{
@@ -529,7 +529,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 
 	offer, err := peer.CreateOffer(false)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// on negotiation needed handler must be registered after creating initial
@@ -563,7 +563,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 	// start estimator reader
 	go peer.estimatorReader()
 
-	return offer, nil
+	return offer, peer, nil
 }
 
 func (manager *WebRTCManagerCtx) SetCursorPosition(x, y int) {

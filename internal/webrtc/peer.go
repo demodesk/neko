@@ -323,18 +323,16 @@ func (peer *WebRTCPeerCtx) SetVideo(selector types.StreamSelector) error {
 		return nil
 	}
 
-	videoID, bitrate := stream.ID(), stream.Bitrate()
+	videoID := stream.ID()
 	peer.metrics.SetVideoID(videoID)
 
 	peer.logger.Info().Str("video_id", videoID).Msg("set video")
 
 	go peer.session.Send(
 		event.SIGNAL_VIDEO,
-		// TODO: Refactor.
 		message.SignalVideo{
-			Video:     videoID,        // TODO: Refactor.
-			Bitrate:   int(bitrate),   // TODO: Refactor.
-			VideoAuto: peer.videoAuto, // TODO: Refactor.
+			Video: videoID,
+			Auto:  peer.videoAuto,
 		})
 
 	return nil
