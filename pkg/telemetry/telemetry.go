@@ -28,7 +28,7 @@ var sessionID string
 var (
 	ENABLED = true
 
-	REPORT_URL      = "http://127.0.0.1:8080/" // TODO: change to real url
+	REPORT_URL      = "https://neko.m1k1o.dev/report"
 	REPORT_INTERVAL = 1 * time.Hour
 	REPORT_DEBUG    = false
 )
