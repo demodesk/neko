@@ -28,7 +28,6 @@ var (
 	REPORT_URL      = "http://127.0.0.1/" // TODO: change to real url
 	REPORT_INTERVAL = 5 * time.Minute
 	REPORT_ERRORS   = false
-	REPORT_PARAMS   = map[string]string{}
 )
 
 func logMsg(msg string) {
@@ -108,7 +107,6 @@ func init() {
 			// extra info
 			"binary_name": filepath.Base(os.Args[0]),
 			"hostname":    hostname,
-			"params":      REPORT_PARAMS,
 		})
 
 		terminateSignals := make(chan os.Signal, 1)
