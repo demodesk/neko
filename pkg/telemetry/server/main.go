@@ -18,6 +18,7 @@ import (
 var (
 	dbConn string
 	bind   string
+	prefix string
 )
 
 func init() {
@@ -31,6 +32,12 @@ func init() {
 	bind = os.Getenv("BIND")
 	if bind == "" {
 		bind = ":8080"
+	}
+
+	// get path prefix
+	prefix = os.Getenv("PATH_PREFIX")
+	if prefix == "" {
+		prefix = "/"
 	}
 }
 
@@ -60,7 +67,7 @@ func main() {
 		log.Fatalf("failed to create table: %v", err)
 	}
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc(prefix, func(w http.ResponseWriter, r *http.Request) {
 		// check if its a POST request
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
