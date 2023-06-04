@@ -8,6 +8,8 @@ import (
 	"github.com/demodesk/neko"
 	"github.com/demodesk/neko/cmd"
 	"github.com/demodesk/neko/pkg/utils"
+
+	_ "github.com/demodesk/neko/pkg/telemetry"
 )
 
 func main() {
