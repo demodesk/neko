@@ -355,7 +355,8 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 				CollapseValues:         true,
 			}),
 		// stream selectors
-		videoSelector: manager.capture.Video(),
+		video: video,
+		audio: audio,
 		// tracks & channels
 		audioTrack:  audioTrack,
 		videoTrack:  videoTrack,
