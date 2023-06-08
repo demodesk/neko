@@ -46,8 +46,16 @@ func (h *MessageHandlerCtx) signalRequest(session types.Session, payload *messag
 		return err
 	}
 
+	audio := payload.Audio
+
+	// enable by default if not requested otherwise
+	if audio.Disabled == nil {
+		disabled := false
+		audio.Disabled = &disabled
+	}
+
 	// set audio stream
-	err = peer.SetAudio(payload.Audio)
+	err = peer.SetAudio(audio)
 	if err != nil {
 		return err
 	}
@@ -57,6 +65,9 @@ func (h *MessageHandlerCtx) signalRequest(session types.Session, payload *messag
 		message.SignalProvide{
 			SDP:        offer.SDP,
 			ICEServers: h.webrtc.ICEServers(),
+
+			Video: peer.Video(),
+			Audio: peer.Audio(),
 		})
 
 	return nil

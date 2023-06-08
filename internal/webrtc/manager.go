@@ -312,6 +312,9 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 		return nil, nil, err
 	}
 
+	// we disable audio by default manually
+	audioTrack.SetPaused(true)
+
 	// set stream for audio track
 	_, err = audioTrack.SetStream(audio)
 	if err != nil {
@@ -365,6 +368,7 @@ func (manager *WebRTCManagerCtx) CreatePeer(session types.Session) (*webrtc.Sess
 		// config
 		iceTrickle:      manager.config.ICETrickle,
 		estimatorConfig: manager.config.Estimator,
+		audioDisabled:   true, // we disable audio by default manually
 	}
 
 	connection.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
