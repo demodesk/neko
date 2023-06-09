@@ -55,6 +55,9 @@ type SignalRequest struct {
 type SignalProvide struct {
 	SDP        string            `json:"sdp"`
 	ICEServers []types.ICEServer `json:"iceservers"`
+
+	Video types.PeerVideo `json:"video"`
+	Audio types.PeerAudio `json:"audio"`
 }
 
 type SignalCandidate struct {
