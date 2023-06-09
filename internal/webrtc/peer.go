@@ -161,8 +161,8 @@ func (peer *WebRTCPeerCtx) estimatorReader() {
 			break
 		}
 
-		// if estimation is disabled, do nothing
-		if !peer.videoAuto || conf.Passive {
+		// if estimation or video is disabled, do nothing
+		if !peer.videoAuto || peer.videoDisabled || peer.paused || conf.Passive {
 			continue
 		}
 
