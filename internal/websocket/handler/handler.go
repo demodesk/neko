@@ -10,12 +10,45 @@ import (
 	"github.com/demodesk/neko/pkg/utils"
 )
 
+type audioListener struct {
+	sample chan types.Sample
+}
+
+func (l *audioListener) WriteSample(sample types.Sample) {
+	l.sample <- sample
+}
+
 func New(
 	sessions types.SessionManager,
 	desktop types.DesktopManager,
 	capture types.CaptureManager,
 	webrtc types.WebRTCManager,
 ) *MessageHandlerCtx {
+	go func() {
+		audio := capture.Audio()
+
+		sample := make(chan types.Sample)
+		audioListener := &audioListener{sample: sample}
+		audio.AddListener(audioListener)
+
+		for {
+			sample := <-sample
+			var data []int
+			for _, sample := range sample.Data {
+				data = append(data, int(sample))
+			}
+			sessions.Broadcast("audio", struct {
+				Duration  float64 `json:"duration"`
+				Timestamp float64 `json:"timestamp"`
+				Data      []int   `json:"data"`
+			}{
+				Duration:  float64(sample.Duration.Milliseconds()) / 1000.0,
+				Timestamp: float64(sample.Timestamp.UnixNano()) / 1000000.0,
+				Data:      data,
+			})
+		}
+	}()
+
 	return &MessageHandlerCtx{
 		logger:   log.With().Str("module", "websocket").Str("submodule", "handler").Logger(),
 		sessions: sessions,

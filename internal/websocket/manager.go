@@ -35,6 +35,8 @@ var nologEvents = []string{
 	event.SYSTEM_HEARTBEAT,
 	// don't log every cursor update
 	event.SESSION_CURSORS,
+	// TODO: do not spam logs with audio events
+	"audio",
 }
 
 func New(
