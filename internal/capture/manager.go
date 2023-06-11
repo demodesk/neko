@@ -21,6 +21,7 @@ type CaptureManagerCtx struct {
 	// sinks
 	broadcast  *BroacastManagerCtx
 	screencast *ScreencastManagerCtx
+	audiocast  *StreamSinkManagerCtx
 	audio      *StreamSinkManagerCtx
 	video      *StreamSelectorManagerCtx
 
@@ -119,6 +120,19 @@ func New(desktop types.DesktopManager, config *config.Capture) *CaptureManagerCt
 					"! appsink name=appsink", config.Display, config.ScreencastRate, config.ScreencastQuality,
 			)
 		}()),
+		audiocast: streamSinkNew(codec.Audio("vorbis"), func() (string, error) {
+			// TODO: add support for custom pipelines
+
+			return fmt.Sprintf(
+				"pulsesrc device=%s "+
+					"! audio/x-raw,channels=2 "+
+					"! audioconvert "+
+					"! queue "+
+					"! vorbisenc "+
+					"! oggmux "+
+					"! appsink name=appsink", config.AudioDevice,
+			), nil
+		}, "audiocast"),
 
 		audio: streamSinkNew(config.AudioCodec, func() (string, error) {
 			if config.AudioPipeline != "" {
@@ -250,6 +264,10 @@ func (manager *CaptureManagerCtx) Broadcast() types.BroadcastManager {
 
 func (manager *CaptureManagerCtx) Screencast() types.ScreencastManager {
 	return manager.screencast
+}
+
+func (manager *CaptureManagerCtx) Audiocast() types.StreamSinkManager {
+	return manager.audiocast
 }
 
 func (manager *CaptureManagerCtx) Audio() types.StreamSinkManager {

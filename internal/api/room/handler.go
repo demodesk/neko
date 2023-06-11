@@ -114,6 +114,7 @@ func (h *RoomHandler) Route(r types.Router) {
 		r.Delete("/dialog", h.uploadDialogClose)
 	})
 
+	r.Get("/audio", h.audioStream)
 }
 
 func (h *RoomHandler) uploadMiddleware(w http.ResponseWriter, r *http.Request) (context.Context, error) {

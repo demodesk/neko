@@ -18,6 +18,22 @@ var RTCPFeedback = []webrtc.RTCPFeedback{
 	{Type: webrtc.TypeRTCPFBNACK, Parameter: ""},
 }
 
+// dummy codec to be used when no codec is available
+
+func Audio(name string) RTPCodec {
+	return RTPCodec{
+		Name: name,
+		Type: webrtc.RTPCodecTypeVideo,
+	}
+}
+
+func Video(name string) RTPCodec {
+	return RTPCodec{
+		Name: name,
+		Type: webrtc.RTPCodecTypeVideo,
+	}
+}
+
 func ParseRTC(codec webrtc.RTPCodecParameters) (RTPCodec, bool) {
 	codecName := strings.Split(codec.RTPCodecCapability.MimeType, "/")[1]
 	return ParseStr(codecName)

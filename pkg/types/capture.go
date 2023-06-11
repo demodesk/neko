@@ -140,6 +140,7 @@ type CaptureManager interface {
 
 	Broadcast() BroadcastManager
 	Screencast() ScreencastManager
+	Audiocast() StreamSinkManager
 	Audio() StreamSinkManager
 	Video() StreamSelectorManager
 
