@@ -29,6 +29,7 @@
  */
 
 /* neko input driver */
+// https://www.x.org/releases/X11R7.7/doc/xorg-server/Xinput.html
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -54,11 +55,12 @@
 #include <xserver-properties.h>
 #include <pthread.h>
 
-#define TOUCH_MAX_SLOTS 10
-#define MAXBUTTONS 11    /* > 10 */
+#define MAXBUTTONS 11   /* > 10 */
 #define TOUCH_NUM_AXES 3 /* x, y, pressure */
+#define TOUCH_MAX_SLOTS 10
 
-struct neko_sample {
+struct neko_sample
+{
     int type;
     int touchId;
     int x;
@@ -66,7 +68,8 @@ struct neko_sample {
     unsigned int pressure;
 };
 
-struct neko_priv {
+struct neko_priv
+{
     pthread_t thread;
     int height;
     int width;
@@ -98,31 +101,32 @@ static void xf86NekoReadInput(InputInfoPtr local)
     int data_socket;
     unsigned char buffer[BUFFER_SIZE];
 
-    /* This is the main loop for handling connections. */
-
-    for (;;) {
-
+    for (;;)
+    {
         /* Wait for incoming connection. */
 
         data_socket = accept(priv->listen_socket, NULL, NULL);
-        if (data_socket == -1) {
+        if (data_socket == -1)
+        {
             perror("accept");
             exit(EXIT_FAILURE);
         }
 
         fprintf(stderr, "xf86-input-neko: accepted\n");
 
-        for(;;) {
-
+        for(;;)
+        {
             /* Wait for next data packet. */
 
             ret = read(data_socket, buffer, BUFFER_SIZE);
-            if (ret == -1) {
+            if (ret == -1)
+            {
                 perror("read");
                 exit(EXIT_FAILURE);
             }
 
-            if (ret == 0) {
+            if (ret == 0)
+            {
                 fprintf(stderr, "xf86-input-neko: read 0 bytes\n");
                 break;
             }
@@ -149,26 +153,27 @@ static void xf86NekoReadInput(InputInfoPtr local)
 
 static int xf86NekoControlProc(DeviceIntPtr device, int what)
 {
-    InputInfoPtr pInfo;
-    unsigned char map[MAXBUTTONS + 1];
-    Atom labels[MAXBUTTONS];
-    Atom axis_labels[TOUCH_NUM_AXES];
-    int i;
-    struct neko_priv *priv;
-
-    pInfo = device->public.devicePrivate;
-    priv = pInfo->private;
+    // device pInfo
+    InputInfoPtr pInfo = device->public.devicePrivate;
+    // custom private data
+    struct neko_priv *priv = pInfo->private;
 
     switch (what) {
     case DEVICE_INIT:
         device->public.on = FALSE;
 
-        /* init button map */
-        memset(map, 0, sizeof(map));
-        for (i = 0; i < MAXBUTTONS; i++)
-            map[i + 1] = i + 1;
+        unsigned char map[MAXBUTTONS + 1];
+        Atom labels[MAXBUTTONS];
+        Atom axis_labels[TOUCH_NUM_AXES];
 
-        /* init labels */
+        // init button map
+        memset(map, 0, sizeof(map));
+        for (int i = 0; i < MAXBUTTONS; i++)
+        {
+            map[i + 1] = i + 1;
+        }
+
+        // init labels
         memset(labels, 0, ARRAY_SIZE(labels) * sizeof(Atom));
         labels[0] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_LEFT);
         labels[1] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_MIDDLE);
@@ -182,36 +187,88 @@ static int xf86NekoControlProc(DeviceIntPtr device, int what)
         labels[9] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_FORWARD);
         labels[10] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_BACK);
 
-        /* init axis labels */
+        // init axis labels
         memset(axis_labels, 0, ARRAY_SIZE(axis_labels) * sizeof(Atom));
-        if (priv->abs_x_only) {
+        if (priv->abs_x_only)
+        {
             axis_labels[0] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_X);
             axis_labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_Y);
             axis_labels[2] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_PRESSURE);
-        } else {
+        }
+        else
+        {
             axis_labels[0] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_X);
             axis_labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_Y);
             axis_labels[2] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_PRESSURE);
         }
 
+        /*
+            This function is provided to allocate and initialize a ButtonClassRec
+            and should be called for extension devices that have buttons.
+            It is passed a pointer to the device, the number of buttons supported,
+            and a map of the reported button codes.
+            It returns FALSE if the ButtonClassRec could not be allocated.
+
+            Bool InitButtonClassDeviceStruct(dev, numButtons, map)
+                    register DeviceIntPtr dev;
+                    int numButtons;
+                    CARD8 *map;
+        */
         if (InitButtonClassDeviceStruct(device,
                 MAXBUTTONS,
                 labels,
-                map) == FALSE) {
+                map) == FALSE)
+        {
             xf86IDrvMsg(pInfo, X_ERROR,
                 "unable to allocate Button class device\n");
             return !Success;
         }
 
+        /* 
+            This function is provided to allocate and initialize a ValuatorClassRec,
+            and should be called for extension devices that have valuators. It is
+            passed the number of axes of motion reported by the device, the address
+            of the motion history procedure for the device, the size of the motion
+            history buffer, and the mode (Absolute or Relative) of the device.
+            It returns FALSE if the ValuatorClassRec could not be allocated.
+
+            Bool InitValuatorClassDeviceStruct(dev, numAxes, motionProc, numMotionEvents, mode)
+                DeviceIntPtr dev;
+                int (*motionProc)();
+                int numAxes;
+                int numMotionEvents;
+                int mode;
+        */
         if (InitValuatorClassDeviceStruct(device,
                 TOUCH_NUM_AXES,
                 axis_labels,
-                0, Absolute) == FALSE) {
+                0, Absolute) == FALSE)
+        {
             xf86IDrvMsg(pInfo, X_ERROR,
                 "unable to allocate Valuator class device\n");
             return !Success;
         }
 
+        /* 
+            This function is provided to initialize an XAxisInfoRec, and should be
+            called for core and extension devices that have valuators. The space
+            for the XAxisInfoRec is allocated by the InitValuatorClassDeviceStruct
+            function, but is not initialized.
+            
+            InitValuatorAxisStruct should be called once for each axis of motion
+            reported by the device. Each invocation should be passed the axis
+            number (starting with 0), the minimum value for that axis, the maximum
+            value for that axis, and the resolution of the device in counts per meter.
+            If the device reports relative motion, 0 should be reported as the
+            minimum and maximum values.
+
+            InitValuatorAxisStruct(dev, axnum, minval, maxval, resolution)
+                DeviceIntPtr dev;
+                int axnum;
+                int minval;
+                int maxval;
+                int resolution;
+        */
         if (priv->abs_x_only) {
             InitValuatorAxisStruct(device, 0,
                 XIGetKnownProperty(AXIS_LABEL_PROP_ABS_X),
@@ -239,7 +296,9 @@ static int xf86NekoControlProc(DeviceIntPtr device, int what)
                 0,                /* min_res */
                 priv->pmax + 1,   /* max_res */
                 Absolute);
-        } else {
+        }
+        else
+        {
             InitValuatorAxisStruct(device, 0,
                 XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_X),
                 0,                /* min val */
@@ -268,10 +327,23 @@ static int xf86NekoControlProc(DeviceIntPtr device, int what)
                 Absolute);
         }
 
+        /*
+            The mode field is either XIDirectTouch for direct−input touch devices
+            such as touchscreens or XIDependentTouch for indirect input devices such
+            as touchpads. For XIDirectTouch devices, touch events are sent to window
+            at the position the touch occured. For XIDependentTouch devices, touch
+            events are sent to the window at the position of the device's sprite.
+
+            The num_touches field defines the maximum number of simultaneous touches
+            the device supports. A num_touches of 0 means the maximum number of
+            simultaneous touches is undefined or unspecified. This field should be
+            used as a guide only, devices will lie about their capabilities.
+        */
         if (InitTouchClassDeviceStruct(device,
                 priv->slots,
                 XIDirectTouch,
-                TOUCH_NUM_AXES) == FALSE) {
+                TOUCH_NUM_AXES) == FALSE)
+        {
             xf86IDrvMsg(pInfo, X_ERROR,
                 "Unable to allocate TouchClassDeviceStruct\n");
             return !Success;
@@ -284,7 +356,9 @@ static int xf86NekoControlProc(DeviceIntPtr device, int what)
         device->public.on = TRUE;
 
         if (priv->thread == 0)
+        {
             pthread_create(&priv->thread, NULL, (void *)xf86NekoReadInput, pInfo);
+        }
         break;
 
     case DEVICE_OFF:
@@ -297,30 +371,7 @@ static int xf86NekoControlProc(DeviceIntPtr device, int what)
     return Success;
 }
 
-static void xf86NekoUninit(__attribute__ ((unused)) InputDriverPtr drv,
-            InputInfoPtr pInfo,
-            __attribute__ ((unused)) int flags)
-{
-    struct neko_priv *priv = (struct neko_priv *)(pInfo->private);
-
-    /* close socket */
-    close(priv->listen_socket);
-    unlink(SOCKET_NAME);
-
-    if (priv->thread) {
-        pthread_cancel(priv->thread);
-        pthread_join(priv->thread, NULL);
-        priv->thread = 0;
-    }
-
-    valuator_mask_free(&priv->valuators);
-    xf86NekoControlProc(pInfo->dev, DEVICE_OFF);
-    free(pInfo->private);
-    pInfo->private = NULL;
-    xf86DeleteInput(pInfo, 0);
-}
-
-static int xf86NekoInit(__attribute__ ((unused)) InputDriverPtr drv,
+static int preinit(__attribute__ ((unused)) InputDriverPtr drv,
             InputInfoPtr pInfo,
             __attribute__ ((unused)) int flags)
 {
@@ -329,7 +380,9 @@ static int xf86NekoInit(__attribute__ ((unused)) InputDriverPtr drv,
 
     priv = calloc(1, sizeof (struct neko_priv));
     if (!priv)
+    {
         return BadValue;
+    }
 
     pInfo->type_name = XI_TOUCHSCREEN;
     pInfo->control_proc = NULL;
@@ -342,7 +395,9 @@ static int xf86NekoInit(__attribute__ ((unused)) InputDriverPtr drv,
 
     s = xf86SetStrOption(pInfo->options, "path", NULL);
     if (!s)
+    {
         s = xf86SetStrOption(pInfo->options, "Device", NULL);
+    }
 
     {
         int ret;
@@ -357,7 +412,8 @@ static int xf86NekoInit(__attribute__ ((unused)) InputDriverPtr drv,
         /* Create local socket. */
 
         priv->listen_socket = socket(AF_UNIX, SOCK_STREAM, 0);
-        if (priv->listen_socket == -1) {
+        if (priv->listen_socket == -1)
+        {
             perror("socket");
             exit(EXIT_FAILURE);
         }
@@ -377,7 +433,8 @@ static int xf86NekoInit(__attribute__ ((unused)) InputDriverPtr drv,
 
         ret = bind(priv->listen_socket, (const struct sockaddr *) &priv->addr,
                 sizeof(struct sockaddr_un));
-        if (ret == -1) {
+        if (ret == -1)
+        {
             perror("bind");
             exit(EXIT_FAILURE);
         }
@@ -389,7 +446,8 @@ static int xf86NekoInit(__attribute__ ((unused)) InputDriverPtr drv,
         */
 
         ret = listen(priv->listen_socket, 20);
-        if (ret == -1) {
+        if (ret == -1)
+        {
             perror("listen");
             exit(EXIT_FAILURE);
         }
@@ -401,7 +459,9 @@ static int xf86NekoInit(__attribute__ ((unused)) InputDriverPtr drv,
 
     priv->valuators = valuator_mask_new(TOUCH_NUM_AXES);
     if (!priv->valuators)
+    {
         return BadValue;
+    }
 
     priv->slots = TOUCH_MAX_SLOTS;
     priv->abs_x_only = 1;
@@ -416,19 +476,42 @@ static int xf86NekoInit(__attribute__ ((unused)) InputDriverPtr drv,
     return Success;
 }
 
-_X_EXPORT InputDriverRec NEKO = {
-    .driverVersion   = 1,
-    .driverName      = "neko",
-    .PreInit         = xf86NekoInit,
-    .UnInit          = xf86NekoUninit,
-    .module          = NULL,
-    .default_options = NULL,
-#ifdef XI86_DRV_CAP_SERVER_FD
-    0                /* TODO add this capability */
-#endif
+static void uninit(__attribute__ ((unused)) InputDriverPtr drv,
+            InputInfoPtr pInfo,
+            __attribute__ ((unused)) int flags)
+{
+    struct neko_priv *priv = (struct neko_priv *)(pInfo->private);
+
+    /* close socket */
+    close(priv->listen_socket);
+    unlink(SOCKET_NAME);
+
+    if (priv->thread)
+    {
+        pthread_cancel(priv->thread);
+        pthread_join(priv->thread, NULL);
+        priv->thread = 0;
+    }
+
+    valuator_mask_free(&priv->valuators);
+    xf86NekoControlProc(pInfo->dev, DEVICE_OFF);
+
+    free(pInfo->private);
+    pInfo->private = NULL;
+    xf86DeleteInput(pInfo, 0);
+}
+
+_X_EXPORT InputDriverRec NEKO =
+{
+    .driverVersion = 1,
+    .driverName    = "neko",
+	.Identify      = NULL,
+    .PreInit       = preinit,
+    .UnInit        = uninit,
+    .module        = NULL
 };
 
-static pointer xf86NekoPlug(pointer module,
+static pointer setup(pointer module,
             __attribute__ ((unused)) pointer options,
             __attribute__ ((unused)) int *errmaj,
             __attribute__ ((unused)) int *errmin)
@@ -437,21 +520,25 @@ static pointer xf86NekoPlug(pointer module,
     return module;
 }
 
-static XF86ModuleVersionInfo xf86NekoVersionRec = {
-    "neko",
-    MODULEVENDORSTRING,
-    MODINFOSTRING1,
-    MODINFOSTRING2,
-    XORG_VERSION_CURRENT,
-    PACKAGE_VERSION_MAJOR, PACKAGE_VERSION_MINOR, PACKAGE_VERSION_PATCHLEVEL,
-    ABI_CLASS_XINPUT,
-    ABI_XINPUT_VERSION,
-    MOD_CLASS_XINPUT,
-    {0, 0, 0, 0}    /* signature, to be patched into the file by a tool */
+static XF86ModuleVersionInfo vers =
+{
+	.modname      = "neko",
+	.vendor       = MODULEVENDORSTRING,
+	._modinfo1_   = MODINFOSTRING1,
+	._modinfo2_   = MODINFOSTRING2,
+	.xf86version  = XORG_VERSION_CURRENT,
+	.majorversion = PACKAGE_VERSION_MAJOR,
+	.minorversion = PACKAGE_VERSION_MINOR,
+	.patchlevel   = PACKAGE_VERSION_PATCHLEVEL,
+	.abiclass     = ABI_CLASS_XINPUT,
+	.abiversion   = ABI_XINPUT_VERSION,
+	.moduleclass  = MOD_CLASS_XINPUT,
+    .checksum     = {0, 0, 0, 0} /* signature, to be patched into the file by a tool */
 };
 
-_X_EXPORT XF86ModuleData nekoModuleData = {
-    .vers = &xf86NekoVersionRec,
-    .setup = xf86NekoPlug,
+_X_EXPORT XF86ModuleData nekoModuleData =
+{
+    .vers     = &vers,
+    .setup    = setup,
     .teardown = NULL
 };
