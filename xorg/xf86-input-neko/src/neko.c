@@ -42,28 +42,15 @@
 #endif
 #include <xf86_OSproc.h>
 #include <xf86Xinput.h>
-#include <exevents.h>
+#include <exevents.h> /* Needed for InitValuator/Proximity stuff */
 #include <X11/keysym.h>
 #include <mipointer.h>
-#include <randrstr.h>
 #include <xserver-properties.h>
+#include <pthread.h>
 
-#include <sys/time.h>
-#include <time.h>
-#include <stdint.h>
-#include <fcntl.h>
-
-#if defined (__FreeBSD__)
-#include <dev/evdev/input.h>
-#else
-#include <linux/input.h>
-#endif
-#include<pthread.h>
-
-#define TOUCH_MAX_SLOTS 10    /* fallback if not found */
-#define TOUCH_SAMPLES_READ 3    /* up to, if available */
-#define MAXBUTTONS 11        /* > 10 */
-#define TOUCH_NUM_AXES 3    /* x, y, pressure */
+#define TOUCH_MAX_SLOTS 10
+#define MAXBUTTONS 11    /* > 10 */
+#define TOUCH_NUM_AXES 3 /* x, y, pressure */
 
 struct tsdev;
 
@@ -142,24 +129,6 @@ static void xf86NekoReadInput(InputInfoPtr local)
     }
 }
 
-static void xf86NekoInitButtonLabels(Atom *labels, size_t size)
-{
-    assert(size > 10);
-
-    memset(labels, 0, size * sizeof(Atom));
-    labels[0] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_LEFT);
-    labels[1] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_MIDDLE);
-    labels[2] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_RIGHT);
-    labels[3] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_WHEEL_UP);
-    labels[4] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_WHEEL_DOWN);
-    labels[5] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_HWHEEL_LEFT);
-    labels[6] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_HWHEEL_RIGHT);
-    labels[7] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_SIDE);
-    labels[8] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_EXTRA);
-    labels[9] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_FORWARD);
-    labels[10] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_BACK);
-}
-
 static int xf86NekoControlProc(DeviceIntPtr device, int what)
 {
     InputInfoPtr pInfo;
@@ -172,19 +141,28 @@ static int xf86NekoControlProc(DeviceIntPtr device, int what)
     pInfo = device->public.devicePrivate;
     priv = pInfo->private;
 
-#ifdef DEBUG
-    xf86IDrvMsg(pInfo, X_ERROR, "%s\n", __FUNCTION__);
-#endif
-
     switch (what) {
     case DEVICE_INIT:
         device->public.on = FALSE;
 
+        /* init button map */
         memset(map, 0, sizeof(map));
         for (i = 0; i < MAXBUTTONS; i++)
             map[i + 1] = i + 1;
 
-        xf86NekoInitButtonLabels(labels, ARRAY_SIZE(labels));
+        /* init labels */
+        memset(labels, 0, ARRAY_SIZE(labels) * sizeof(Atom));
+        labels[0] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_LEFT);
+        labels[1] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_MIDDLE);
+        labels[2] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_RIGHT);
+        labels[3] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_WHEEL_UP);
+        labels[4] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_WHEEL_DOWN);
+        labels[5] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_HWHEEL_LEFT);
+        labels[6] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_HWHEEL_RIGHT);
+        labels[7] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_SIDE);
+        labels[8] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_EXTRA);
+        labels[9] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_FORWARD);
+        labels[10] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_BACK);
 
         /* init axis labels */
         memset(axis_labels, 0, ARRAY_SIZE(axis_labels) * sizeof(Atom));
@@ -199,92 +177,92 @@ static int xf86NekoControlProc(DeviceIntPtr device, int what)
         }
 
         if (InitButtonClassDeviceStruct(device,
-                        MAXBUTTONS,
-                        labels,
-                        map) == FALSE) {
+                MAXBUTTONS,
+                labels,
+                map) == FALSE) {
             xf86IDrvMsg(pInfo, X_ERROR,
-                    "unable to allocate Button class device\n");
+                "unable to allocate Button class device\n");
             return !Success;
         }
 
         if (InitValuatorClassDeviceStruct(device,
-                          TOUCH_NUM_AXES,
-                          axis_labels,
-                          0, Absolute) == FALSE) {
+                TOUCH_NUM_AXES,
+                axis_labels,
+                0, Absolute) == FALSE) {
             xf86IDrvMsg(pInfo, X_ERROR,
-                    "unable to allocate Valuator class device\n");
+                "unable to allocate Valuator class device\n");
             return !Success;
         }
 
         if (priv->abs_x_only) {
             InitValuatorAxisStruct(device, 0,
-                           XIGetKnownProperty(AXIS_LABEL_PROP_ABS_X),
-                           0,        /* min val */
-                           priv->width - 1,    /* max val */
-                           priv->width,    /* resolution */
-                           0,        /* min_res */
-                           priv->width,    /* max_res */
-                           Absolute);
+                XIGetKnownProperty(AXIS_LABEL_PROP_ABS_X),
+                0,                /* min val */
+                priv->width - 1,  /* max val */
+                priv->width,      /* resolution */
+                0,                /* min_res */
+                priv->width,      /* max_res */
+                Absolute);
 
             InitValuatorAxisStruct(device, 1,
-                           XIGetKnownProperty(AXIS_LABEL_PROP_ABS_Y),
-                           0,        /* min val */
-                           priv->height - 1,/* max val */
-                           priv->height,    /* resolution */
-                           0,        /* min_res */
-                           priv->height,    /* max_res */
-                           Absolute);
+                XIGetKnownProperty(AXIS_LABEL_PROP_ABS_Y),
+                0,                /* min val */
+                priv->height - 1, /* max val */
+                priv->height,     /* resolution */
+                0,                /* min_res */
+                priv->height,     /* max_res */
+                Absolute);
 
             InitValuatorAxisStruct(device, 2,
-                           XIGetKnownProperty(AXIS_LABEL_PROP_ABS_PRESSURE),
-                           0,        /* min val */
-                           priv->pmax,    /* max val */
-                           priv->pmax + 1,    /* resolution */
-                           0,        /* min_res */
-                           priv->pmax + 1,    /* max_res */
-                           Absolute);
+                XIGetKnownProperty(AXIS_LABEL_PROP_ABS_PRESSURE),
+                0,                /* min val */
+                priv->pmax,       /* max val */
+                priv->pmax + 1,   /* resolution */
+                0,                /* min_res */
+                priv->pmax + 1,   /* max_res */
+                Absolute);
         } else {
             InitValuatorAxisStruct(device, 0,
-                           XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_X),
-                           0,        /* min val */
-                           priv->width - 1,    /* max val */
-                           priv->width,    /* resolution */
-                           0,        /* min_res */
-                           priv->width,    /* max_res */
-                           Absolute);
+                XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_X),
+                0,                /* min val */
+                priv->width - 1,  /* max val */
+                priv->width,      /* resolution */
+                0,                /* min_res */
+                priv->width,      /* max_res */
+                Absolute);
 
             InitValuatorAxisStruct(device, 1,
-                           XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_Y),
-                           0,        /* min val */
-                           priv->height - 1,/* max val */
-                           priv->height,    /* resolution */
-                           0,        /* min_res */
-                           priv->height,    /* max_res */
-                           Absolute);
+                XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_Y),
+                0,                /* min val */
+                priv->height - 1, /* max val */
+                priv->height,     /* resolution */
+                0,                /* min_res */
+                priv->height,     /* max_res */
+                Absolute);
 
             InitValuatorAxisStruct(device, 2,
-                           XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_PRESSURE),
-                           0,        /* min val */
-                           priv->pmax,    /* max val */
-                           priv->pmax + 1,    /* resolution */
-                           0,        /* min_res */
-                           priv->pmax + 1,    /* max_res */
-                           Absolute);
+                XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_PRESSURE),
+                0,                /* min val */
+                priv->pmax,       /* max val */
+                priv->pmax + 1,   /* resolution */
+                0,                /* min_res */
+                priv->pmax + 1,   /* max_res */
+                Absolute);
         }
 
         if (InitTouchClassDeviceStruct(device,
-                           priv->slots,
-                           XIDirectTouch,
-                           TOUCH_NUM_AXES) == FALSE) {
+                priv->slots,
+                XIDirectTouch,
+                TOUCH_NUM_AXES) == FALSE) {
             xf86IDrvMsg(pInfo, X_ERROR,
-                    "Unable to allocate TouchClassDeviceStruct\n");
+                "Unable to allocate TouchClassDeviceStruct\n");
             return !Success;
         }
 
         break;
 
     case DEVICE_ON:
-        fprintf(stderr, "xf86-input-neko: DEVICE ON\n");
+        xf86IDrvMsg(pInfo, X_PROBED, "xf86-input-neko: DEVICE ON\n");
         device->public.on = TRUE;
 
         if (priv->thread == 0)
@@ -293,10 +271,11 @@ static int xf86NekoControlProc(DeviceIntPtr device, int what)
 
     case DEVICE_OFF:
     case DEVICE_CLOSE:
-        fprintf(stderr, "xf86-input-neko: DEVICE OFF\n");
+        xf86IDrvMsg(pInfo, X_PROBED, "xf86-input-neko: DEVICE OFF\n");
         device->public.on = FALSE;
         break;
     }
+
     return Success;
 }
 
@@ -306,17 +285,13 @@ static void xf86NekoUninit(__attribute__ ((unused)) InputDriverPtr drv,
 {
     struct neko_priv *priv = (struct neko_priv *)(pInfo->private);
 
-#ifdef DEBUG
-    xf86IDrvMsg(pInfo, X_ERROR, "%s\n", __FUNCTION__);
-#endif
-
     if (priv->thread) {
         pthread_cancel(priv->thread);
         pthread_join(priv->thread, NULL);
         priv->thread = 0;
     }
 
-    valuato_rmask_free(&priv->valuators);
+    valuator_mask_free(&priv->valuators);
     xf86NekoControlProc(pInfo->dev, DEVICE_OFF);
     free(pInfo->private);
     pInfo->private = NULL;
