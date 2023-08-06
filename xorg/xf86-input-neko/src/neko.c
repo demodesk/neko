@@ -34,7 +34,13 @@
 #include "config.h"
 #endif
 
+#define SOCKET_NAME "/tmp/resol.sock"
+#define BUFFER_SIZE 12
+
 #include <stdio.h>
+#include <stdio.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <misc.h>
 #include <xf86.h>
 #if !defined(DGUX)
@@ -52,80 +58,92 @@
 #define MAXBUTTONS 11    /* > 10 */
 #define TOUCH_NUM_AXES 3 /* x, y, pressure */
 
-struct tsdev;
-
 struct neko_sample {
+    int type;
+    int touchId;
     int x;
     int y;
     unsigned int pressure;
-    struct timeval tv;
 };
 
 struct neko_priv {
     pthread_t thread;
-    struct tsdev *ts;
     int height;
     int width;
     int pmax;
-    struct neko_sample last;
     ValuatorMask *valuators;
     int8_t abs_x_only;
     uint16_t slots;
-    uint32_t *touchids;
+
+    struct sockaddr_un addr;
+    int listen_socket;
 };
+
+// from binary representation to struct
+static void unpackNekoSample(struct neko_sample *samp, unsigned char *buffer)
+{
+    samp->type = buffer[0];
+    samp->touchId = buffer[1];
+    samp->x = buffer[2] << 8 | buffer[3];
+    samp->y = buffer[4] << 8 | buffer[5];
+    samp->pressure = buffer[6] << 8 | buffer[7];
+}
 
 static void xf86NekoReadInput(InputInfoPtr local)
 {
     struct neko_priv *priv = (struct neko_priv *) (local->private);
     struct neko_sample samp;
     int ret;
-    int type = 0;
-    int i = 0;
 
-    while (1) {
-        // wait 1 second for data
-        usleep(1000000);
-        fprintf(stderr, "xf86-input-neko: read\n");
+    int data_socket;
+    unsigned char buffer[BUFFER_SIZE];
 
-        samp.x = 100;
-        samp.y = 100;
+    /* This is the main loop for handling connections. */
 
-        if (priv->last.pressure == 0)
-            samp.pressure = -1;
-        else
-            samp.pressure = 0;
+    for (;;) {
 
-        ValuatorMask *m = priv->valuators;
-    
-        if (priv->last.pressure == 0 && samp.pressure > 0) {
-            type = XI_TouchBegin;
-            fprintf(stderr, "xf86-input-neko: touch begin\n");
-        } else if (priv->last.pressure > 0 && samp.pressure == 0) {
-            type = XI_TouchEnd;
-            fprintf(stderr, "xf86-input-neko: touch end\n");
-        } else if (priv->last.pressure > 0 && samp.pressure > 0) {
-            type = XI_TouchUpdate;
-            fprintf(stderr, "xf86-input-neko: touch update\n");
+        /* Wait for incoming connection. */
+
+        data_socket = accept(priv->listen_socket, NULL, NULL);
+        if (data_socket == -1) {
+            perror("accept");
+            exit(EXIT_FAILURE);
         }
-    
-        valuator_mask_zero(m);
-    
-        if (type != XI_TouchEnd) {
+
+        fprintf(stderr, "xf86-input-neko: accepted\n");
+
+        for(;;) {
+
+            /* Wait for next data packet. */
+
+            ret = read(data_socket, buffer, BUFFER_SIZE);
+            if (ret == -1) {
+                perror("read");
+                exit(EXIT_FAILURE);
+            }
+
+            if (ret == 0) {
+                fprintf(stderr, "xf86-input-neko: read 0 bytes\n");
+                break;
+            }
+
+            fprintf(stderr, "xf86-input-neko: read %d bytes\n", ret);
+
+            unpackNekoSample(&samp, buffer);
+
+            ValuatorMask *m = priv->valuators;
+            valuator_mask_zero(m);
             valuator_mask_set_double(m, 0, samp.x);
             valuator_mask_set_double(m, 1, samp.y);
             valuator_mask_set_double(m, 2, samp.pressure);
+
+            xf86PostTouchEvent(local->dev, samp.touchId, samp.type, 0, m);
+            fprintf(stderr, "xf86-input-neko: touchId is %d, type is %d\n", samp.touchId, samp.type);
+            fprintf(stderr, "xf86-input-neko: x is %d, y is %d, pressure is %d\n", samp.x, samp.y, samp.pressure);
         }
 
-        xf86PostTouchEvent(local->dev, i/2, type, 0, m);
-    
-        memcpy(&priv->last, &samp, sizeof(struct neko_sample));
-        fprintf(stderr, "xf86-input-neko: read end, type is %d, i is %d\n", type, i/2);
-        i++;
-    }
-
-    if (ret < 0) {
-        xf86IDrvMsg(local, X_ERROR, "ts_read failed\n");
-        return;
+        /* Close socket. */
+        close(data_socket);
     }
 }
 
@@ -285,6 +303,10 @@ static void xf86NekoUninit(__attribute__ ((unused)) InputDriverPtr drv,
 {
     struct neko_priv *priv = (struct neko_priv *)(pInfo->private);
 
+    /* close socket */
+    close(priv->listen_socket);
+    unlink(SOCKET_NAME);
+
     if (priv->thread) {
         pthread_cancel(priv->thread);
         pthread_join(priv->thread, NULL);
@@ -321,6 +343,57 @@ static int xf86NekoInit(__attribute__ ((unused)) InputDriverPtr drv,
     s = xf86SetStrOption(pInfo->options, "path", NULL);
     if (!s)
         s = xf86SetStrOption(pInfo->options, "Device", NULL);
+
+    {
+        int ret;
+
+        /*
+        * In case the program exited inadvertently on the last run,
+        * remove the socket.
+        */
+
+        unlink(SOCKET_NAME);
+
+        /* Create local socket. */
+
+        priv->listen_socket = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (priv->listen_socket == -1) {
+            perror("socket");
+            exit(EXIT_FAILURE);
+        }
+
+        /*
+        * For portability clear the whole structure, since some
+        * implementations have additional (nonstandard) fields in
+        * the structure.
+        */
+
+        memset(&priv->addr, 0, sizeof(struct sockaddr_un));
+
+        /* Bind socket to socket name. */
+
+        priv->addr.sun_family = AF_UNIX;
+        strncpy(priv->addr.sun_path, SOCKET_NAME, sizeof(priv->addr.sun_path) - 1);
+
+        ret = bind(priv->listen_socket, (const struct sockaddr *) &priv->addr,
+                sizeof(struct sockaddr_un));
+        if (ret == -1) {
+            perror("bind");
+            exit(EXIT_FAILURE);
+        }
+
+        /*
+        * Prepare for accepting connections. The backlog size is set
+        * to 20. So while one request is being processed other requests
+        * can be waiting.
+        */
+
+        ret = listen(priv->listen_socket, 20);
+        if (ret == -1) {
+            perror("listen");
+            exit(EXIT_FAILURE);
+        }
+    }
 
     /* process generic options */
     xf86CollectInputOptions(pInfo, NULL);
