@@ -10,7 +10,7 @@ const (
 	XI_TouchEnd    = 20
 )
 
-type inputDriverMessage struct {
+type InputDriverMessage struct {
 	_type    int
 	touchId  int
 	x        int
@@ -18,7 +18,7 @@ type inputDriverMessage struct {
 	pressure int
 }
 
-func (msg *inputDriverMessage) Unpack(buffer []byte) {
+func (msg *InputDriverMessage) Unpack(buffer []byte) {
 	msg._type = int(buffer[0])
 	msg.touchId = int(buffer[1])
 	msg.x = int(buffer[2])<<8 | int(buffer[3])
@@ -26,7 +26,7 @@ func (msg *inputDriverMessage) Unpack(buffer []byte) {
 	msg.pressure = int(buffer[6])<<8 | int(buffer[7])
 }
 
-func (msg *inputDriverMessage) Pack() []byte {
+func (msg *InputDriverMessage) Pack() []byte {
 	var buffer [8]byte
 
 	buffer[0] = byte(msg._type)
@@ -41,18 +41,18 @@ func (msg *inputDriverMessage) Pack() []byte {
 	return buffer[:]
 }
 
-type inputDriver struct {
+type InputDriver struct {
 	socket string
 	conn   net.Conn
 }
 
-func NewInputDriver(socket string) *inputDriver {
-	return &inputDriver{
+func NewInputDriver(socket string) *InputDriver {
+	return &InputDriver{
 		socket: socket,
 	}
 }
 
-func (d *inputDriver) Connect() error {
+func (d *InputDriver) Connect() error {
 	c, err := net.Dial("unix", d.socket)
 	if err != nil {
 		return err
@@ -61,12 +61,12 @@ func (d *inputDriver) Connect() error {
 	return nil
 }
 
-func (d *inputDriver) Close() error {
+func (d *InputDriver) Close() error {
 	return d.conn.Close()
 }
 
-func (d *inputDriver) SendTouchBegin(touchId int, x int, y int, pressure int) error {
-	msg := inputDriverMessage{
+func (d *InputDriver) SendTouchBegin(touchId int, x int, y int, pressure int) error {
+	msg := InputDriverMessage{
 		_type:    XI_TouchBegin,
 		touchId:  touchId,
 		x:        x,
@@ -77,8 +77,8 @@ func (d *inputDriver) SendTouchBegin(touchId int, x int, y int, pressure int) er
 	return err
 }
 
-func (d *inputDriver) SendTouchUpdate(touchId int, x int, y int, pressure int) error {
-	msg := inputDriverMessage{
+func (d *InputDriver) SendTouchUpdate(touchId int, x int, y int, pressure int) error {
+	msg := InputDriverMessage{
 		_type:    XI_TouchUpdate,
 		touchId:  touchId,
 		x:        x,
@@ -89,8 +89,8 @@ func (d *inputDriver) SendTouchUpdate(touchId int, x int, y int, pressure int) e
 	return err
 }
 
-func (d *inputDriver) SendTouchEnd(touchId int, x int, y int, pressure int) error {
-	msg := inputDriverMessage{
+func (d *InputDriver) SendTouchEnd(touchId int, x int, y int, pressure int) error {
+	msg := InputDriverMessage{
 		_type:    XI_TouchEnd,
 		touchId:  touchId,
 		x:        x,

@@ -151,6 +151,39 @@ func (manager *WebRTCManagerCtx) handle(
 		} else {
 			logger.Trace().Uint32("key", payload.Key).Msg("button up")
 		}
+	case payload.OP_TOUCH_BEGIN:
+		payload := &payload.Touch{}
+		if err := binary.Read(buffer, binary.BigEndian, payload); err != nil {
+			return err
+		}
+
+		if err := manager.desktop.TouchBegin(int(payload.TouchId), int(payload.X), int(payload.Y), int(payload.Pressure)); err != nil {
+			logger.Warn().Err(err).Uint32("touchId", payload.TouchId).Msg("touch begin failed")
+		} else {
+			logger.Trace().Uint32("touchId", payload.TouchId).Msg("touch begin")
+		}
+	case payload.OP_TOUCH_UPDATE:
+		payload := &payload.Touch{}
+		if err := binary.Read(buffer, binary.BigEndian, payload); err != nil {
+			return err
+		}
+
+		if err := manager.desktop.TouchUpdate(int(payload.TouchId), int(payload.X), int(payload.Y), int(payload.Pressure)); err != nil {
+			logger.Warn().Err(err).Uint32("touchId", payload.TouchId).Msg("touch update failed")
+		} else {
+			logger.Trace().Uint32("touchId", payload.TouchId).Msg("touch update")
+		}
+	case payload.OP_TOUCH_END:
+		payload := &payload.Touch{}
+		if err := binary.Read(buffer, binary.BigEndian, payload); err != nil {
+			return err
+		}
+
+		if err := manager.desktop.TouchEnd(int(payload.TouchId), int(payload.X), int(payload.Y), int(payload.Pressure)); err != nil {
+			logger.Warn().Err(err).Uint32("touchId", payload.TouchId).Msg("touch end failed")
+		} else {
+			logger.Trace().Uint32("touchId", payload.TouchId).Msg("touch end")
+		}
 	}
 
 	return nil

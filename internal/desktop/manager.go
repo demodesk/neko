@@ -22,6 +22,7 @@ type DesktopManagerCtx struct {
 	shutdown chan struct{}
 	emmiter  events.EventEmmiter
 	config   *config.Desktop
+	input    *xorg.InputDriver
 }
 
 func New(config *config.Desktop) *DesktopManagerCtx {
@@ -30,6 +31,7 @@ func New(config *config.Desktop) *DesktopManagerCtx {
 		shutdown: make(chan struct{}),
 		emmiter:  events.New(),
 		config:   config,
+		input:    xorg.NewInputDriver("/tmp/resol.sock"),
 	}
 }
 
@@ -44,6 +46,12 @@ func (manager *DesktopManagerCtx) Start() {
 	manager.logger.Err(err).
 		Str("screen_size", fmt.Sprintf("%dx%d@%d", width, height, rate)).
 		Msgf("setting initial screen size")
+
+	err = manager.input.Connect()
+	if err != nil {
+		// TODO: Emulate touch events.
+		manager.logger.Panic().Err(err).Msg("unable to connect to input driver")
+	}
 
 	xevent.Unminimize = manager.config.Unminimize
 	go xevent.EventLoop(manager.config.Display)
@@ -77,6 +85,18 @@ func (manager *DesktopManagerCtx) Start() {
 			}
 		}
 	}()
+}
+
+func (manager *DesktopManagerCtx) TouchBegin(touchId int, x int, y int, pressure int) error {
+	return manager.input.SendTouchBegin(touchId, x, y, pressure)
+}
+
+func (manager *DesktopManagerCtx) TouchUpdate(touchId int, x int, y int, pressure int) error {
+	return manager.input.SendTouchUpdate(touchId, x, y, pressure)
+}
+
+func (manager *DesktopManagerCtx) TouchEnd(touchId int, x int, y int, pressure int) error {
+	return manager.input.SendTouchEnd(touchId, x, y, pressure)
 }
 
 func (manager *DesktopManagerCtx) OnBeforeScreenSizeChange(listener func()) {

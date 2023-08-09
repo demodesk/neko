@@ -68,6 +68,11 @@ type DesktopManager interface {
 	OnFileChooserDialogClosed(listener func())
 	OnEventError(listener func(error_code uint8, message string, request_code uint8, minor_code uint8))
 
+	// input driver
+	TouchBegin(touchId int, x int, y int, pressure int) error
+	TouchUpdate(touchId int, x int, y int, pressure int) error
+	TouchEnd(touchId int, x int, y int, pressure int) error
+
 	// clipboard
 	ClipboardGetText() (*ClipboardText, error)
 	ClipboardSetText(data ClipboardText) error
