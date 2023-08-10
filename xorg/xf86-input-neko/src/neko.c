@@ -61,10 +61,10 @@
 
 struct neko_message
 {
-    int type;
-    int touchId;
-    int x;
-    int y;
+    uint16_t type;
+    uint32_t touchId;
+    int32_t x;
+    int32_t y;
     unsigned int pressure;
 };
 
@@ -88,10 +88,10 @@ struct neko_priv
 static void unpackNekoMessage(struct neko_message *msg, unsigned char *buffer)
 {
     msg->type = buffer[0];
-    msg->touchId = buffer[1];
-    msg->x = buffer[2] << 8 | buffer[3];
-    msg->y = buffer[4] << 8 | buffer[5];
-    msg->pressure = buffer[6] << 8 | buffer[7];
+    msg->touchId = buffer[1] | (buffer[2] << 8);
+    msg->x = buffer[3] | (buffer[4] << 8) | (buffer[5] << 16) | (buffer[6] << 24);
+    msg->y = buffer[7] | (buffer[8] << 8) | (buffer[9] << 16) | (buffer[10] << 24);
+    msg->pressure = buffer[11];
 }
 
 static void xf86NekoReadInput(InputInfoPtr pInfo)

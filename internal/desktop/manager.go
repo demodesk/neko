@@ -87,15 +87,24 @@ func (manager *DesktopManagerCtx) Start() {
 	}()
 }
 
-func (manager *DesktopManagerCtx) TouchBegin(touchId int, x int, y int, pressure int) error {
+func (manager *DesktopManagerCtx) TouchBegin(touchId uint32, x, y int, pressure uint16) error {
+	// TODO: make x and y relative to the screen size
+	x = (x * 1024) / manager.config.ScreenWidth
+	y = (y * 768) / manager.config.ScreenHeight
 	return manager.input.SendTouchBegin(touchId, x, y, pressure)
 }
 
-func (manager *DesktopManagerCtx) TouchUpdate(touchId int, x int, y int, pressure int) error {
+func (manager *DesktopManagerCtx) TouchUpdate(touchId uint32, x, y int, pressure uint16) error {
+	// TODO: make x and y relative to the screen size
+	x = (x * 1024) / manager.config.ScreenWidth
+	y = (y * 768) / manager.config.ScreenHeight
 	return manager.input.SendTouchUpdate(touchId, x, y, pressure)
 }
 
-func (manager *DesktopManagerCtx) TouchEnd(touchId int, x int, y int, pressure int) error {
+func (manager *DesktopManagerCtx) TouchEnd(touchId uint32, x, y int, pressure uint16) error {
+	// TODO: make x and y relative to the screen size
+	x = (x * 1024) / manager.config.ScreenWidth
+	y = (y * 768) / manager.config.ScreenHeight
 	return manager.input.SendTouchEnd(touchId, x, y, pressure)
 }
 

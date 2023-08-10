@@ -42,7 +42,7 @@ func (p Ping) ClientTs() uint64 {
 
 type Touch struct {
 	TouchId  uint32
-	X        uint16
-	Y        uint16
+	X        int32
+	Y        int32
 	Pressure uint16
 }

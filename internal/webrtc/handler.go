@@ -157,7 +157,7 @@ func (manager *WebRTCManagerCtx) handle(
 			return err
 		}
 
-		if err := manager.desktop.TouchBegin(int(payload.TouchId), int(payload.X), int(payload.Y), int(payload.Pressure)); err != nil {
+		if err := manager.desktop.TouchBegin(payload.TouchId, int(payload.X), int(payload.Y), payload.Pressure); err != nil {
 			logger.Warn().Err(err).Uint32("touchId", payload.TouchId).Msg("touch begin failed")
 		} else {
 			logger.Trace().Uint32("touchId", payload.TouchId).Msg("touch begin")
@@ -168,7 +168,7 @@ func (manager *WebRTCManagerCtx) handle(
 			return err
 		}
 
-		if err := manager.desktop.TouchUpdate(int(payload.TouchId), int(payload.X), int(payload.Y), int(payload.Pressure)); err != nil {
+		if err := manager.desktop.TouchUpdate(payload.TouchId, int(payload.X), int(payload.Y), payload.Pressure); err != nil {
 			logger.Warn().Err(err).Uint32("touchId", payload.TouchId).Msg("touch update failed")
 		} else {
 			logger.Trace().Uint32("touchId", payload.TouchId).Msg("touch update")
@@ -179,7 +179,7 @@ func (manager *WebRTCManagerCtx) handle(
 			return err
 		}
 
-		if err := manager.desktop.TouchEnd(int(payload.TouchId), int(payload.X), int(payload.Y), int(payload.Pressure)); err != nil {
+		if err := manager.desktop.TouchEnd(payload.TouchId, int(payload.X), int(payload.Y), payload.Pressure); err != nil {
 			logger.Warn().Err(err).Uint32("touchId", payload.TouchId).Msg("touch end failed")
 		} else {
 			logger.Trace().Uint32("touchId", payload.TouchId).Msg("touch end")
