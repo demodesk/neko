@@ -7,6 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"github.com/demodesk/neko/pkg/types"
 )
 
 type Desktop struct {
@@ -14,9 +16,7 @@ type Desktop struct {
 
 	Unminimize bool
 
-	ScreenWidth  int
-	ScreenHeight int
-	ScreenRate   int16
+	ScreenSize types.ScreenSize
 }
 
 func (Desktop) Init(cmd *cobra.Command) error {
@@ -39,9 +39,11 @@ func (s *Desktop) Set() {
 
 	s.Unminimize = viper.GetBool("desktop.unminimize")
 
-	s.ScreenWidth = 1280
-	s.ScreenHeight = 720
-	s.ScreenRate = 30
+	s.ScreenSize = types.ScreenSize{
+		Width:  1280,
+		Height: 720,
+		Rate:   30,
+	}
 
 	r := regexp.MustCompile(`([0-9]{1,4})x([0-9]{1,4})@([0-9]{1,3})`)
 	res := r.FindStringSubmatch(viper.GetString("desktop.screen"))
@@ -52,9 +54,9 @@ func (s *Desktop) Set() {
 		rate, err3 := strconv.ParseInt(res[3], 10, 64)
 
 		if err1 == nil && err2 == nil && err3 == nil {
-			s.ScreenWidth = int(width)
-			s.ScreenHeight = int(height)
-			s.ScreenRate = int16(rate)
+			s.ScreenSize.Width = int(width)
+			s.ScreenSize.Height = int(height)
+			s.ScreenSize.Rate = int16(rate)
 		}
 	}
 }

@@ -77,7 +77,6 @@ struct neko_priv
     int width;
     int pmax;
     ValuatorMask *valuators;
-    int8_t abs_x_only;
     uint16_t slots;
     /* socket */
     struct sockaddr_un addr;
@@ -202,18 +201,9 @@ DeviceControl(DeviceIntPtr device, int what)
 
         // init axis labels
         memset(axis_labels, 0, ARRAY_SIZE(axis_labels) * sizeof(Atom));
-        if (priv->abs_x_only)
-        {
-            axis_labels[0] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_X);
-            axis_labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_Y);
-            axis_labels[2] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_PRESSURE);
-        }
-        else
-        {
-            axis_labels[0] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_X);
-            axis_labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_Y);
-            axis_labels[2] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_PRESSURE);
-        }
+        axis_labels[0] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_X);
+        axis_labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_Y);
+        axis_labels[2] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_PRESSURE);
 
         /* initialize mouse emulation valuators */
         if (InitPointerDeviceStruct((DevicePtr)device,
@@ -248,63 +238,32 @@ DeviceControl(DeviceIntPtr device, int what)
                 int maxval;
                 int resolution;
         */
-        if (priv->abs_x_only) {
-            InitValuatorAxisStruct(device, 0,
-                XIGetKnownProperty(AXIS_LABEL_PROP_ABS_X),
-                0,                /* min val */
-                priv->width - 1,  /* max val */
-                priv->width,      /* resolution */
-                0,                /* min_res */
-                priv->width,      /* max_res */
-                Absolute);
+        xf86InitValuatorAxisStruct(device, 0,
+            XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_X),
+            0,                /* min val */
+            priv->width - 1,  /* max val */
+            priv->width,      /* resolution */
+            0,                /* min_res */
+            priv->width,      /* max_res */
+            Absolute);
 
-            InitValuatorAxisStruct(device, 1,
-                XIGetKnownProperty(AXIS_LABEL_PROP_ABS_Y),
-                0,                /* min val */
-                priv->height - 1, /* max val */
-                priv->height,     /* resolution */
-                0,                /* min_res */
-                priv->height,     /* max_res */
-                Absolute);
+        xf86InitValuatorAxisStruct(device, 1,
+            XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_Y),
+            0,                /* min val */
+            priv->height - 1, /* max val */
+            priv->height,     /* resolution */
+            0,                /* min_res */
+            priv->height,     /* max_res */
+            Absolute);
 
-            InitValuatorAxisStruct(device, 2,
-                XIGetKnownProperty(AXIS_LABEL_PROP_ABS_PRESSURE),
-                0,                /* min val */
-                priv->pmax,       /* max val */
-                priv->pmax + 1,   /* resolution */
-                0,                /* min_res */
-                priv->pmax + 1,   /* max_res */
-                Absolute);
-        }
-        else
-        {
-            InitValuatorAxisStruct(device, 0,
-                XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_X),
-                0,                /* min val */
-                priv->width - 1,  /* max val */
-                priv->width,      /* resolution */
-                0,                /* min_res */
-                priv->width,      /* max_res */
-                Absolute);
-
-            InitValuatorAxisStruct(device, 1,
-                XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_Y),
-                0,                /* min val */
-                priv->height - 1, /* max val */
-                priv->height,     /* resolution */
-                0,                /* min_res */
-                priv->height,     /* max_res */
-                Absolute);
-
-            InitValuatorAxisStruct(device, 2,
-                XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_PRESSURE),
-                0,                /* min val */
-                priv->pmax,       /* max val */
-                priv->pmax + 1,   /* resolution */
-                0,                /* min_res */
-                priv->pmax + 1,   /* max_res */
-                Absolute);
-        }
+        xf86InitValuatorAxisStruct(device, 2,
+            XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_PRESSURE),
+            0,                /* min val */
+            priv->pmax,       /* max val */
+            priv->pmax + 1,   /* resolution */
+            0,                /* min_res */
+            priv->pmax + 1,   /* max_res */
+            Absolute);
 
         /*
             The mode field is either XIDirectTouch for direct−input touch devices
@@ -438,10 +397,9 @@ PreInit(__attribute__ ((unused)) InputDriverPtr drv,
     }
 
     priv->slots = TOUCH_MAX_SLOTS;
-    priv->abs_x_only = 1;
-    priv->width = 1024; // TODO: get from config?
-    priv->height = 768; // TODO: get from config?
-    priv->pmax = 255; // TODO: get from config?
+    priv->width = 0xffff;
+    priv->height = 0xffff;
+    priv->pmax = 255;
     priv->thread = 0;
 
     /* Return the configured device */

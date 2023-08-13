@@ -1,7 +1,6 @@
 package desktop
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/demodesk/neko/internal/config"
+	"github.com/demodesk/neko/pkg/types"
 	"github.com/demodesk/neko/pkg/xevent"
 	"github.com/demodesk/neko/pkg/xorg"
 )
@@ -17,21 +17,23 @@ import (
 var mu = sync.Mutex{}
 
 type DesktopManagerCtx struct {
-	logger   zerolog.Logger
-	wg       sync.WaitGroup
-	shutdown chan struct{}
-	emmiter  events.EventEmmiter
-	config   *config.Desktop
-	input    *xorg.InputDriver
+	logger     zerolog.Logger
+	wg         sync.WaitGroup
+	shutdown   chan struct{}
+	emmiter    events.EventEmmiter
+	config     *config.Desktop
+	screenSize types.ScreenSize // cached screen size
+	input      *xorg.InputDriver
 }
 
 func New(config *config.Desktop) *DesktopManagerCtx {
 	return &DesktopManagerCtx{
-		logger:   log.With().Str("module", "desktop").Logger(),
-		shutdown: make(chan struct{}),
-		emmiter:  events.New(),
-		config:   config,
-		input:    xorg.NewInputDriver("/tmp/xf86-input-neko.sock"),
+		logger:     log.With().Str("module", "desktop").Logger(),
+		shutdown:   make(chan struct{}),
+		emmiter:    events.New(),
+		config:     config,
+		screenSize: config.ScreenSize,
+		input:      xorg.NewInputDriver("/tmp/xf86-input-neko.sock"),
 	}
 }
 
@@ -42,10 +44,18 @@ func (manager *DesktopManagerCtx) Start() {
 
 	xorg.GetScreenConfigurations()
 
-	width, height, rate, err := xorg.ChangeScreenSize(manager.config.ScreenWidth, manager.config.ScreenHeight, manager.config.ScreenRate)
-	manager.logger.Err(err).
-		Str("screen_size", fmt.Sprintf("%dx%d@%d", width, height, rate)).
-		Msgf("setting initial screen size")
+	screenSize, err := xorg.ChangeScreenSize(manager.config.ScreenSize)
+	if err != nil {
+		manager.logger.Err(err).
+			Str("screen_size", screenSize.String()).
+			Msgf("unable to set initial screen size")
+	} else {
+		// cache screen size
+		manager.screenSize = screenSize
+		manager.logger.Info().
+			Str("screen_size", screenSize.String()).
+			Msgf("setting initial screen size")
+	}
 
 	err = manager.input.Connect()
 	if err != nil {
@@ -87,24 +97,31 @@ func (manager *DesktopManagerCtx) Start() {
 	}()
 }
 
+func (manager *DesktopManagerCtx) sizeRelToAbs(x, y int) (int, int) {
+	return (x * 0xffff) / manager.screenSize.Width, (y * 0xffff) / manager.screenSize.Height
+}
+
 func (manager *DesktopManagerCtx) TouchBegin(touchId uint32, x, y int, pressure uint16) error {
-	// TODO: make x and y relative to the screen size
-	x = (x * 1024) / manager.config.ScreenWidth
-	y = (y * 768) / manager.config.ScreenHeight
+	mu.Lock()
+	defer mu.Unlock()
+
+	x, y = manager.sizeRelToAbs(x, y)
 	return manager.input.SendTouchBegin(touchId, x, y, pressure)
 }
 
 func (manager *DesktopManagerCtx) TouchUpdate(touchId uint32, x, y int, pressure uint16) error {
-	// TODO: make x and y relative to the screen size
-	x = (x * 1024) / manager.config.ScreenWidth
-	y = (y * 768) / manager.config.ScreenHeight
+	mu.Lock()
+	defer mu.Unlock()
+
+	x, y = manager.sizeRelToAbs(x, y)
 	return manager.input.SendTouchUpdate(touchId, x, y, pressure)
 }
 
 func (manager *DesktopManagerCtx) TouchEnd(touchId uint32, x, y int, pressure uint16) error {
-	// TODO: make x and y relative to the screen size
-	x = (x * 1024) / manager.config.ScreenWidth
-	y = (y * 768) / manager.config.ScreenHeight
+	mu.Lock()
+	defer mu.Unlock()
+
+	x, y = manager.sizeRelToAbs(x, y)
 	return manager.input.SendTouchEnd(touchId, x, y, pressure)
 }
 

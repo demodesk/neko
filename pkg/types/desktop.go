@@ -1,6 +1,7 @@
 package types
 
 import (
+	"fmt"
 	"image"
 )
 
@@ -17,6 +18,10 @@ type ScreenSize struct {
 	Width  int
 	Height int
 	Rate   int16
+}
+
+func (s ScreenSize) String() string {
+	return fmt.Sprintf("%dx%d@%d", s.Width, s.Height, s.Rate)
 }
 
 type KeyboardModifiers struct {
