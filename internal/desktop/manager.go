@@ -31,7 +31,7 @@ func New(config *config.Desktop) *DesktopManagerCtx {
 		shutdown: make(chan struct{}),
 		emmiter:  events.New(),
 		config:   config,
-		input:    xorg.NewInputDriver("/tmp/resol.sock"),
+		input:    xorg.NewInputDriver("/tmp/xf86-input-neko.sock"),
 	}
 }
 

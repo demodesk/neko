@@ -2,6 +2,7 @@
  * (c) 2017 Martin Kepplinger <martink@posteo.de>
  * (c) 2007 Clement Chauplannaz, Thales e-Transactions <chauplac@gmail.com>
  * (c) 2006 Sascha Hauer, Pengutronix <s.hauer@pengutronix.de>
+ * (c) 2023 Miroslav Sedivy
  *
  * derived from the xf86-input-void driver
  * Copyright 1999 by Frederic Lepied, France. <Lepied@XFree86.org>
@@ -35,7 +36,7 @@
 #include "config.h"
 #endif
 
-#define DEF_SOCKET_NAME "/tmp/xf86-input-neko.socket"
+#define DEF_SOCKET_NAME "/tmp/xf86-input-neko.sock"
 #define BUFFER_SIZE 12
 
 #include <stdio.h>
@@ -85,7 +86,8 @@ struct neko_priv
 };
 
 // from binary representation to struct
-static void unpackNekoMessage(struct neko_message *msg, unsigned char *buffer)
+static void
+UnpackNekoMessage(struct neko_message *msg, unsigned char *buffer)
 {
     msg->type = buffer[0];
     msg->touchId = buffer[1] | (buffer[2] << 8);
@@ -94,7 +96,8 @@ static void unpackNekoMessage(struct neko_message *msg, unsigned char *buffer)
     msg->pressure = buffer[11];
 }
 
-static void xf86NekoReadInput(InputInfoPtr pInfo)
+static void
+ReadInput(InputInfoPtr pInfo)
 {
     struct neko_priv *priv = (struct neko_priv *) (pInfo->private);
     struct neko_message msg;
@@ -111,11 +114,11 @@ static void xf86NekoReadInput(InputInfoPtr pInfo)
         /* Handle error conditions. */
         if (data_socket == -1)
         {
-            xf86IDrvMsg(pInfo, X_ERROR, "xf86-input-neko: unable to accept connection\n");
+            xf86IDrvMsg(pInfo, X_ERROR, "unable to accept connection\n");
             break;
         }
 
-        xf86IDrvMsg(pInfo, X_INFO, "xf86-input-neko: accepted connection\n");
+        xf86IDrvMsg(pInfo, X_INFO, "accepted connection\n");
 
         for(;;)
         {
@@ -125,18 +128,18 @@ static void xf86NekoReadInput(InputInfoPtr pInfo)
             /* Handle error conditions. */
             if (ret == -1)
             {
-                xf86IDrvMsg(pInfo, X_ERROR, "xf86-input-neko: unable to read data\n");
+                xf86IDrvMsg(pInfo, X_ERROR, "unable to read data\n");
                 break;
             }
 
             /* Connection closed by client. */
             if (ret == 0)
             {
-                xf86IDrvMsg(pInfo, X_INFO, "xf86-input-neko: connection closed\n");
+                xf86IDrvMsg(pInfo, X_INFO, "connection closed\n");
                 break;
             }
 
-            unpackNekoMessage(&msg, buffer);
+            UnpackNekoMessage(&msg, buffer);
 
             ValuatorMask *m = priv->valuators;
             valuator_mask_zero(m);
@@ -150,11 +153,18 @@ static void xf86NekoReadInput(InputInfoPtr pInfo)
         /* Close socket. */
         close(data_socket);
 
-        xf86IDrvMsg(pInfo, X_INFO, "xf86-input-neko: closed connection\n");
+        xf86IDrvMsg(pInfo, X_INFO, "closed connection\n");
     }
 }
 
-static int xf86NekoControlProc(DeviceIntPtr device, int what)
+static void
+PointerCtrl(__attribute__ ((unused)) DeviceIntPtr device,
+            __attribute__ ((unused)) PtrCtrl *ctrl)
+{
+}
+
+static int
+DeviceControl(DeviceIntPtr device, int what)
 {
     // device pInfo
     InputInfoPtr pInfo = device->public.devicePrivate;
@@ -205,50 +215,16 @@ static int xf86NekoControlProc(DeviceIntPtr device, int what)
             axis_labels[2] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_PRESSURE);
         }
 
-        /*
-            This function is provided to allocate and initialize a ButtonClassRec
-            and should be called for extension devices that have buttons.
-            It is passed a pointer to the device, the number of buttons supported,
-            and a map of the reported button codes.
-            It returns FALSE if the ButtonClassRec could not be allocated.
-
-            Bool InitButtonClassDeviceStruct(dev, numButtons, map)
-                    register DeviceIntPtr dev;
-                    int numButtons;
-                    CARD8 *map;
-        */
-        if (InitButtonClassDeviceStruct(device,
-                MAXBUTTONS,
-                labels,
-                map) == FALSE)
+        /* initialize mouse emulation valuators */
+        if (InitPointerDeviceStruct((DevicePtr)device,
+                map,
+                MAXBUTTONS, labels,
+                PointerCtrl,
+                GetMotionHistorySize(),
+                TOUCH_NUM_AXES, axis_labels) == FALSE)
         {
             xf86IDrvMsg(pInfo, X_ERROR,
-                "unable to allocate Button class device\n");
-            return !Success;
-        }
-
-        /* 
-            This function is provided to allocate and initialize a ValuatorClassRec,
-            and should be called for extension devices that have valuators. It is
-            passed the number of axes of motion reported by the device, the address
-            of the motion history procedure for the device, the size of the motion
-            history buffer, and the mode (Absolute or Relative) of the device.
-            It returns FALSE if the ValuatorClassRec could not be allocated.
-
-            Bool InitValuatorClassDeviceStruct(dev, numAxes, motionProc, numMotionEvents, mode)
-                DeviceIntPtr dev;
-                int (*motionProc)();
-                int numAxes;
-                int numMotionEvents;
-                int mode;
-        */
-        if (InitValuatorClassDeviceStruct(device,
-                TOUCH_NUM_AXES,
-                axis_labels,
-                0, Absolute) == FALSE)
-        {
-            xf86IDrvMsg(pInfo, X_ERROR,
-                "unable to allocate Valuator class device\n");
+                "unable to allocate PointerDeviceStruct\n");
             return !Success;
         }
 
@@ -348,26 +324,26 @@ static int xf86NekoControlProc(DeviceIntPtr device, int what)
                 TOUCH_NUM_AXES) == FALSE)
         {
             xf86IDrvMsg(pInfo, X_ERROR,
-                "Unable to allocate TouchClassDeviceStruct\n");
+                "unable to allocate TouchClassDeviceStruct\n");
             return !Success;
         }
 
         break;
 
     case DEVICE_ON:
-        xf86IDrvMsg(pInfo, X_INFO, "xf86-input-neko: DEVICE ON\n");
+        xf86IDrvMsg(pInfo, X_INFO, "DEVICE ON\n");
         device->public.on = TRUE;
 
         if (priv->thread == 0)
         {
             /* start thread */
-            pthread_create(&priv->thread, NULL, (void *)xf86NekoReadInput, pInfo);
+            pthread_create(&priv->thread, NULL, (void *)ReadInput, pInfo);
         }
         break;
 
     case DEVICE_OFF:
     case DEVICE_CLOSE:
-        xf86IDrvMsg(pInfo, X_INFO, "xf86-input-neko: DEVICE OFF\n");
+        xf86IDrvMsg(pInfo, X_INFO, "DEVICE OFF\n");
         device->public.on = FALSE;
         break;
     }
@@ -375,9 +351,10 @@ static int xf86NekoControlProc(DeviceIntPtr device, int what)
     return Success;
 }
 
-static int preinit(__attribute__ ((unused)) InputDriverPtr drv,
-            InputInfoPtr pInfo,
-            __attribute__ ((unused)) int flags)
+static int
+PreInit(__attribute__ ((unused)) InputDriverPtr drv,
+        InputInfoPtr pInfo,
+        __attribute__ ((unused)) int flags)
 {
     struct neko_priv *priv;
     int ret;
@@ -385,18 +362,17 @@ static int preinit(__attribute__ ((unused)) InputDriverPtr drv,
     priv = calloc(1, sizeof (struct neko_priv));
     if (!priv)
     {
-        xf86IDrvMsg(pInfo, X_ERROR, "xf86-input-neko: %s: out of memory\n", __FUNCTION__);
+        xf86IDrvMsg(pInfo, X_ERROR, "%s: out of memory\n", __FUNCTION__);
         return BadValue;
     }
 
-    pInfo->type_name = XI_TOUCHSCREEN;
-    pInfo->control_proc = NULL;
-    pInfo->read_input = NULL;
-    pInfo->device_control = xf86NekoControlProc;
-    pInfo->switch_mode = NULL;
-    pInfo->private = priv;
-    pInfo->dev = NULL;
-    pInfo->fd = -1;
+    pInfo->type_name      = (char*)XI_TOUCHSCREEN;
+    pInfo->device_control = DeviceControl;
+    pInfo->read_input     = NULL;
+    pInfo->control_proc   = NULL;
+    pInfo->switch_mode    = NULL; /* Only support Absolute mode */
+    pInfo->private        = priv;
+    pInfo->fd             = -1;
 
     /* get socket name from config */
     priv->socket_name = xf86SetStrOption(pInfo->options, "SocketName", DEF_SOCKET_NAME);
@@ -412,7 +388,7 @@ static int preinit(__attribute__ ((unused)) InputDriverPtr drv,
     priv->listen_socket = socket(AF_UNIX, SOCK_STREAM, 0);
     if (priv->listen_socket == -1)
     {
-        xf86IDrvMsg(pInfo, X_ERROR, "xf86-input-neko: unable to create socket\n");
+        xf86IDrvMsg(pInfo, X_ERROR, "unable to create socket\n");
         return BadValue;
     }
 
@@ -432,7 +408,7 @@ static int preinit(__attribute__ ((unused)) InputDriverPtr drv,
     ret = bind(priv->listen_socket, (const struct sockaddr *) &priv->addr, sizeof(struct sockaddr_un));
     if (ret == -1)
     {
-        xf86IDrvMsg(pInfo, X_ERROR, "xf86-input-neko: unable to bind socket\n");
+        xf86IDrvMsg(pInfo, X_ERROR, "unable to bind socket\n");
         return BadValue;
     }
 
@@ -445,7 +421,7 @@ static int preinit(__attribute__ ((unused)) InputDriverPtr drv,
     ret = listen(priv->listen_socket, 5);
     if (ret == -1)
     {
-        xf86IDrvMsg(pInfo, X_ERROR, "xf86-input-neko: unable to listen on socket\n");
+        xf86IDrvMsg(pInfo, X_ERROR, "unable to listen on socket\n");
         return BadValue;
     }
 
@@ -457,7 +433,7 @@ static int preinit(__attribute__ ((unused)) InputDriverPtr drv,
     priv->valuators = valuator_mask_new(TOUCH_NUM_AXES);
     if (!priv->valuators)
     {
-        xf86IDrvMsg(pInfo, X_ERROR, "xf86-input-neko: %s: out of memory\n", __FUNCTION__);
+        xf86IDrvMsg(pInfo, X_ERROR, "%s: out of memory\n", __FUNCTION__);
         return BadValue;
     }
 
@@ -472,9 +448,10 @@ static int preinit(__attribute__ ((unused)) InputDriverPtr drv,
     return Success;
 }
 
-static void uninit(__attribute__ ((unused)) InputDriverPtr drv,
-            InputInfoPtr pInfo,
-            __attribute__ ((unused)) int flags)
+static void
+UnInit(__attribute__ ((unused)) InputDriverPtr drv,
+       InputInfoPtr pInfo,
+       __attribute__ ((unused)) int flags)
 {
     struct neko_priv *priv = (struct neko_priv *)(pInfo->private);
 
@@ -494,33 +471,43 @@ static void uninit(__attribute__ ((unused)) InputDriverPtr drv,
     }
 
     valuator_mask_free(&priv->valuators);
-    xf86NekoControlProc(pInfo->dev, DEVICE_OFF);
+    DeviceControl(pInfo->dev, DEVICE_OFF);
 
     free(pInfo->private);
     pInfo->private = NULL;
     xf86DeleteInput(pInfo, 0);
 }
 
+/**
+ * X module information and plug / unplug routines
+ */
+
 _X_EXPORT InputDriverRec NEKO =
 {
     .driverVersion = 1,
     .driverName    = "neko",
 	.Identify      = NULL,
-    .PreInit       = preinit,
-    .UnInit        = uninit,
+    .PreInit       = PreInit,
+    .UnInit        = UnInit,
     .module        = NULL
 };
 
-static pointer setup(pointer module,
-            __attribute__ ((unused)) pointer options,
-            __attribute__ ((unused)) int *errmaj,
-            __attribute__ ((unused)) int *errmin)
+static pointer
+Plug(pointer module,
+     __attribute__ ((unused)) pointer options,
+     __attribute__ ((unused)) int *errmaj,
+     __attribute__ ((unused)) int *errmin)
 {
     xf86AddInputDriver(&NEKO, module, 0);
     return module;
 }
 
-static XF86ModuleVersionInfo vers =
+static void
+Unplug(__attribute__ ((unused)) pointer module)
+{
+}
+
+static XF86ModuleVersionInfo versionRec =
 {
 	.modname      = "neko",
 	.vendor       = MODULEVENDORSTRING,
@@ -538,7 +525,7 @@ static XF86ModuleVersionInfo vers =
 
 _X_EXPORT XF86ModuleData nekoModuleData =
 {
-    .vers     = &vers,
-    .setup    = setup,
-    .teardown = NULL
+    .vers     = &versionRec,
+    .setup    = Plug,
+    .teardown = Unplug
 };
