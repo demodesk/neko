@@ -129,6 +129,12 @@ type ControlKey struct {
 	Keysym uint32 `json:"keysym"`
 }
 
+type ControlTouch struct {
+	TouchId uint32 `json:"touch_id"`
+	*ControlPos
+	Pressure uint16 `json:"pressure"`
+}
+
 /////////////////////////////
 // Screen
 /////////////////////////////
