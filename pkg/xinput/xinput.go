@@ -58,7 +58,7 @@ func (d *driver) Debounce(duration time.Duration) {
 	}
 }
 
-func (d *driver) TouchBegin(touchId uint32, x, y int, pressure uint16) error {
+func (d *driver) TouchBegin(touchId uint32, x, y int, pressure uint8) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -79,7 +79,7 @@ func (d *driver) TouchBegin(touchId uint32, x, y int, pressure uint16) error {
 	return err
 }
 
-func (d *driver) TouchUpdate(touchId uint32, x, y int, pressure uint16) error {
+func (d *driver) TouchUpdate(touchId uint32, x, y int, pressure uint8) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -100,7 +100,7 @@ func (d *driver) TouchUpdate(touchId uint32, x, y int, pressure uint16) error {
 	return err
 }
 
-func (d *driver) TouchEnd(touchId uint32, x, y int, pressure uint16) error {
+func (d *driver) TouchEnd(touchId uint32, x, y int, pressure uint8) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 

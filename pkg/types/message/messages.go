@@ -132,7 +132,7 @@ type ControlKey struct {
 type ControlTouch struct {
 	TouchId uint32 `json:"touch_id"`
 	*ControlPos
-	Pressure uint16 `json:"pressure"`
+	Pressure uint8 `json:"pressure"`
 }
 
 /////////////////////////////

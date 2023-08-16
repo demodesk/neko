@@ -19,7 +19,7 @@ type Message struct {
 	touchId  uint32
 	x        int32 // can be negative?
 	y        int32 // can be negative?
-	pressure uint16
+	pressure uint8
 }
 
 func (msg *Message) Unpack(buffer []byte) {
@@ -27,7 +27,7 @@ func (msg *Message) Unpack(buffer []byte) {
 	msg.touchId = uint32(buffer[1]) | (uint32(buffer[2]) << 8)
 	msg.x = int32(buffer[3]) | (int32(buffer[4]) << 8) | (int32(buffer[5]) << 16) | (int32(buffer[6]) << 24)
 	msg.y = int32(buffer[7]) | (int32(buffer[8]) << 8) | (int32(buffer[9]) << 16) | (int32(buffer[10]) << 24)
-	msg.pressure = uint16(buffer[11])
+	msg.pressure = uint8(buffer[11])
 }
 
 func (msg *Message) Pack() []byte {
@@ -55,7 +55,7 @@ type Driver interface {
 	// release touches, that were not updated for duration
 	Debounce(duration time.Duration)
 	// touch events
-	TouchBegin(touchId uint32, x, y int, pressure uint16) error
-	TouchUpdate(touchId uint32, x, y int, pressure uint16) error
-	TouchEnd(touchId uint32, x, y int, pressure uint16) error
+	TouchBegin(touchId uint32, x, y int, pressure uint8) error
+	TouchUpdate(touchId uint32, x, y int, pressure uint8) error
+	TouchEnd(touchId uint32, x, y int, pressure uint8) error
 }

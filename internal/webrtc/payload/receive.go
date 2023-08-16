@@ -44,5 +44,5 @@ type Touch struct {
 	TouchId  uint32
 	X        int32
 	Y        int32
-	Pressure uint16
+	Pressure uint8
 }

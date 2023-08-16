@@ -74,9 +74,9 @@ type DesktopManager interface {
 	OnEventError(listener func(error_code uint8, message string, request_code uint8, minor_code uint8))
 
 	// input driver
-	TouchBegin(touchId uint32, x, y int, pressure uint16) error
-	TouchUpdate(touchId uint32, x, y int, pressure uint16) error
-	TouchEnd(touchId uint32, x, y int, pressure uint16) error
+	TouchBegin(touchId uint32, x, y int, pressure uint8) error
+	TouchUpdate(touchId uint32, x, y int, pressure uint8) error
+	TouchEnd(touchId uint32, x, y int, pressure uint8) error
 
 	// clipboard
 	ClipboardGetText() (*ClipboardText, error)
