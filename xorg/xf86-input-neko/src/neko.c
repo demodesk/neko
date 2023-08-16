@@ -66,7 +66,7 @@ struct neko_message
     uint32_t touchId;
     int32_t x;
     int32_t y;
-    unsigned int pressure;
+    uint8_t pressure;
 };
 
 struct neko_priv
@@ -88,8 +88,8 @@ struct neko_priv
 static void
 UnpackNekoMessage(struct neko_message *msg, unsigned char *buffer)
 {
-    msg->type = buffer[0];
-    msg->touchId = buffer[1] | (buffer[2] << 8);
+    msg->type = buffer[0]; // TODO: use full 16bit type
+    msg->touchId = buffer[1] | (buffer[2] << 8); // TODO: use full 32bit touchId
     msg->x = buffer[3] | (buffer[4] << 8) | (buffer[5] << 16) | (buffer[6] << 24);
     msg->y = buffer[7] | (buffer[8] << 8) | (buffer[9] << 16) | (buffer[10] << 24);
     msg->pressure = buffer[11];
@@ -142,10 +142,16 @@ ReadInput(InputInfoPtr pInfo)
 
             ValuatorMask *m = priv->valuators;
             valuator_mask_zero(m);
-            valuator_mask_set_double(m, 0, msg.x);
-            valuator_mask_set_double(m, 1, msg.y);
-            valuator_mask_set_double(m, 2, msg.pressure);
 
+            // do not send valuators if x and y are -1
+            if (msg.x != -1 && msg.y != -1)
+            {
+                valuator_mask_set_double(m, 0, msg.x);
+                valuator_mask_set_double(m, 1, msg.y);
+                valuator_mask_set_double(m, 2, msg.pressure);
+            }
+
+            // TODO: extend to other types, such as keyboard and mouse
             xf86PostTouchEvent(pInfo->dev, msg.touchId, msg.type, 0, m);
         }
 

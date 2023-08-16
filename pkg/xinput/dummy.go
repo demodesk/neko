@@ -1,5 +1,7 @@
 package xinput
 
+import "time"
+
 type dummy struct{}
 
 func NewDummy() Driver {
@@ -13,6 +15,8 @@ func (d *dummy) Connect() error {
 func (d *dummy) Close() error {
 	return nil
 }
+
+func (d *dummy) Debounce(duration time.Duration) {}
 
 func (d *dummy) TouchBegin(touchId uint32, x, y int, pressure uint16) error {
 	return nil

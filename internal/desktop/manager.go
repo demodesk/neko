@@ -94,12 +94,15 @@ func (manager *DesktopManagerCtx) Start() {
 		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
 
+		const debounceDuration = 10 * time.Second
+
 		for {
 			select {
 			case <-manager.shutdown:
 				return
 			case <-ticker.C:
-				xorg.CheckKeys(time.Second * 10)
+				xorg.CheckKeys(debounceDuration)
+				manager.input.Debounce(debounceDuration)
 			}
 		}
 	}()

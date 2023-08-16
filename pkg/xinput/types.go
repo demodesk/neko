@@ -1,5 +1,7 @@
 package xinput
 
+import "time"
+
 const (
 	// absolute coordinates used in driver
 	AbsX = 0xffff
@@ -50,6 +52,8 @@ func (msg *Message) Pack() []byte {
 type Driver interface {
 	Connect() error
 	Close() error
+	// release touches, that were not updated for duration
+	Debounce(duration time.Duration)
 	// touch events
 	TouchBegin(touchId uint32, x, y int, pressure uint16) error
 	TouchUpdate(touchId uint32, x, y int, pressure uint16) error
