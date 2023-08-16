@@ -14,14 +14,27 @@ import (
 type Desktop struct {
 	Display string
 
-	Unminimize bool
-
 	ScreenSize types.ScreenSize
+
+	UseInputDriver bool
+	InputSocket    string
+
+	Unminimize bool
 }
 
 func (Desktop) Init(cmd *cobra.Command) error {
 	cmd.PersistentFlags().String("desktop.screen", "1280x720@30", "default screen size and framerate")
 	if err := viper.BindPFlag("desktop.screen", cmd.PersistentFlags().Lookup("desktop.screen")); err != nil {
+		return err
+	}
+
+	cmd.PersistentFlags().Bool("desktop.input.enabled", true, "whether custom xf86 input driver should be used to handle touchscreen")
+	if err := viper.BindPFlag("desktop.input.enabled", cmd.PersistentFlags().Lookup("desktop.input.enabled")); err != nil {
+		return err
+	}
+
+	cmd.PersistentFlags().String("desktop.input.socket", "/tmp/xf86-input-neko.sock", "socket path for custom xf86 input driver connection")
+	if err := viper.BindPFlag("desktop.input.socket", cmd.PersistentFlags().Lookup("desktop.input.socket")); err != nil {
 		return err
 	}
 
@@ -36,8 +49,6 @@ func (Desktop) Init(cmd *cobra.Command) error {
 func (s *Desktop) Set() {
 	// Display is provided by env variable
 	s.Display = os.Getenv("DISPLAY")
-
-	s.Unminimize = viper.GetBool("desktop.unminimize")
 
 	s.ScreenSize = types.ScreenSize{
 		Width:  1280,
@@ -59,4 +70,8 @@ func (s *Desktop) Set() {
 			s.ScreenSize.Rate = int16(rate)
 		}
 	}
+
+	s.UseInputDriver = viper.GetBool("desktop.input.enabled")
+	s.InputSocket = viper.GetString("desktop.input.socket")
+	s.Unminimize = viper.GetBool("desktop.unminimize")
 }

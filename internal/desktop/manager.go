@@ -11,6 +11,7 @@ import (
 	"github.com/demodesk/neko/internal/config"
 	"github.com/demodesk/neko/pkg/types"
 	"github.com/demodesk/neko/pkg/xevent"
+	"github.com/demodesk/neko/pkg/xinput"
 	"github.com/demodesk/neko/pkg/xorg"
 )
 
@@ -23,17 +24,24 @@ type DesktopManagerCtx struct {
 	emmiter    events.EventEmmiter
 	config     *config.Desktop
 	screenSize types.ScreenSize // cached screen size
-	input      *xorg.InputDriver
+	input      xinput.Driver
 }
 
 func New(config *config.Desktop) *DesktopManagerCtx {
+	var input xinput.Driver
+	if config.UseInputDriver {
+		input = xinput.NewDriver(config.InputSocket)
+	} else {
+		input = xinput.NewDummy()
+	}
+
 	return &DesktopManagerCtx{
 		logger:     log.With().Str("module", "desktop").Logger(),
 		shutdown:   make(chan struct{}),
 		emmiter:    events.New(),
 		config:     config,
 		screenSize: config.ScreenSize,
-		input:      xorg.NewInputDriver("/tmp/xf86-input-neko.sock"),
+		input:      input,
 	}
 }
 
@@ -59,7 +67,7 @@ func (manager *DesktopManagerCtx) Start() {
 
 	err = manager.input.Connect()
 	if err != nil {
-		// TODO: Emulate touch events.
+		// TODO: fail silently to dummy driver?
 		manager.logger.Panic().Err(err).Msg("unable to connect to input driver")
 	}
 
@@ -95,34 +103,6 @@ func (manager *DesktopManagerCtx) Start() {
 			}
 		}
 	}()
-}
-
-func (manager *DesktopManagerCtx) sizeRelToAbs(x, y int) (int, int) {
-	return (x * 0xffff) / manager.screenSize.Width, (y * 0xffff) / manager.screenSize.Height
-}
-
-func (manager *DesktopManagerCtx) TouchBegin(touchId uint32, x, y int, pressure uint16) error {
-	mu.Lock()
-	defer mu.Unlock()
-
-	x, y = manager.sizeRelToAbs(x, y)
-	return manager.input.SendTouchBegin(touchId, x, y, pressure)
-}
-
-func (manager *DesktopManagerCtx) TouchUpdate(touchId uint32, x, y int, pressure uint16) error {
-	mu.Lock()
-	defer mu.Unlock()
-
-	x, y = manager.sizeRelToAbs(x, y)
-	return manager.input.SendTouchUpdate(touchId, x, y, pressure)
-}
-
-func (manager *DesktopManagerCtx) TouchEnd(touchId uint32, x, y int, pressure uint16) error {
-	mu.Lock()
-	defer mu.Unlock()
-
-	x, y = manager.sizeRelToAbs(x, y)
-	return manager.input.SendTouchEnd(touchId, x, y, pressure)
 }
 
 func (manager *DesktopManagerCtx) OnBeforeScreenSizeChange(listener func()) {
