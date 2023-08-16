@@ -138,6 +138,13 @@ ReadInput(InputInfoPtr pInfo)
                 break;
             }
 
+            /* Ensure message is long enough. */
+            if (ret != BUFFER_SIZE)
+            {
+                xf86IDrvMsg(pInfo, X_ERROR, "invalid message size\n");
+                break;
+            }
+
             UnpackNekoMessage(&msg, buffer);
 
             ValuatorMask *m = priv->valuators;
