@@ -20,6 +20,7 @@ type SystemInit struct {
 	ScreenSize        ScreenSize             `json:"screen_size"`
 	Sessions          map[string]SessionData `json:"sessions"`
 	Settings          types.Settings         `json:"settings"`
+	TouchEvents       bool                   `json:"touch_events"`
 	ScreencastEnabled bool                   `json:"screencast_enabled"`
 	WebRTC            SystemWebRTC           `json:"webrtc"`
 }
