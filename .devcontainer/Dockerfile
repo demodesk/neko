@@ -1,7 +1,7 @@
 #
 # Stage 0: Build xorg dependencies.
 #
-FROM debian:bookworm-slim as xorg-deps
+FROM debian:bullseye-slim as xorg-deps
 
 ENV DEBIAN_FRONTEND=noninteractive
 
