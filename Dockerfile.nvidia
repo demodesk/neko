@@ -1,7 +1,7 @@
-ARG UBUNTU_RELEASE=20.04
-ARG CUDA_VERSION=11.4.3
+ARG UBUNTU_RELEASE=22.04
+ARG CUDA_VERSION=12.2.0
 ARG VIRTUALGL_VERSION=3.1
-ARG GSTREAMER_VERSION=1.20
+ARG GSTREAMER_VERSION=1.22
 
 #
 # Stage 0: Build gstreamer with nvidia plugins.
@@ -188,7 +188,7 @@ RUN set -eux; \
     apt-get install -y --no-install-recommends \
         wget ca-certificates \
         pulseaudio dbus-x11 xserver-xorg-video-dummy \
-        libcairo2 libxcb1 libxrandr2 libxv1 libopus0 libvpx6 libxcvt0 libx264-155 \
+        libcairo2 libxcb1 libxrandr2 libxv1 libopus0 libvpx7 libx264-163 libxcvt0 \
         libgtk-3-bin software-properties-common cabextract aptitude vim curl \
         #
         # needed for profile upload preStop hook
