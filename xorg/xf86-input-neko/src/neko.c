@@ -37,7 +37,7 @@
 #endif
 
 #define DEF_SOCKET_NAME "/tmp/xf86-input-neko.sock"
-#define BUFFER_SIZE 12
+#define BUFFER_SIZE 16
 
 #include <stdio.h>
 #include <stdio.h>
@@ -60,13 +60,23 @@
 #define TABLET_NUM_BUTTONS 11 /* we need scroll buttons */
 #define TOUCH_MAX_SLOTS 10 /* max number of simultaneous touches */
 
+
 struct neko_message
 {
+    // type 1 - touch begin
+    // type 2 - touch update
+    // type 3 - touch end (with payload)
+    // type 4 - touch end (without payload)
+    // type 5 - pointer motion
+    // type 6 - button down
+    // type 7 - button up
+    // type 8 - scroll motion
     uint16_t type;
     uint32_t touchId;
-    int32_t x;
-    int32_t y;
+    int32_t x; // mt_x, abs_y, rel_hscroll
+    int32_t y; // mt_y, abs_y, rel_vscroll
     uint8_t pressure;
+    uint32_t button;
 };
 
 struct neko_priv
@@ -93,6 +103,7 @@ UnpackNekoMessage(struct neko_message *msg, unsigned char *buffer)
     msg->x = buffer[3] | (buffer[4] << 8) | (buffer[5] << 16) | (buffer[6] << 24);
     msg->y = buffer[7] | (buffer[8] << 8) | (buffer[9] << 16) | (buffer[10] << 24);
     msg->pressure = buffer[11];
+    msg->button = buffer[12] | (buffer[13] << 8) | (buffer[14] << 16) | (buffer[15] << 24);
 }
 
 static void
@@ -150,16 +161,57 @@ ReadInput(InputInfoPtr pInfo)
             ValuatorMask *m = priv->valuators;
             valuator_mask_zero(m);
 
-            // do not send valuators if x and y are -1
-            if (msg.x != -1 && msg.y != -1)
+            switch(msg.type)
             {
+            case 1:
+                xf86IDrvMsg(pInfo, X_INFO, "touch begin\n");
                 valuator_mask_set_double(m, 0, msg.x);
                 valuator_mask_set_double(m, 1, msg.y);
                 valuator_mask_set_double(m, 2, msg.pressure);
+                xf86PostTouchEvent(pInfo->dev, msg.touchId, XI_TouchBegin, 0, m);
+                break;
+            case 2:
+                xf86IDrvMsg(pInfo, X_INFO, "touch update\n");
+                valuator_mask_set_double(m, 0, msg.x);
+                valuator_mask_set_double(m, 1, msg.y);
+                valuator_mask_set_double(m, 2, msg.pressure);
+                xf86PostTouchEvent(pInfo->dev, msg.touchId, XI_TouchUpdate, 0, m);
+                break;
+            case 3:
+                xf86IDrvMsg(pInfo, X_INFO, "touch end with payload\n");
+                valuator_mask_set_double(m, 0, msg.x);
+                valuator_mask_set_double(m, 1, msg.y);
+                valuator_mask_set_double(m, 2, msg.pressure);
+                xf86PostTouchEvent(pInfo->dev, msg.touchId, XI_TouchEnd, 0, m);
+                break;
+            case 4:
+                xf86IDrvMsg(pInfo, X_INFO, "touch end without payload\n");
+                xf86PostTouchEvent(pInfo->dev, msg.touchId, XI_TouchEnd, 0, m);
+                break;
+            case 5:
+                xf86IDrvMsg(pInfo, X_INFO, "pointer motion\n");
+                valuator_mask_set_double(m, 3, msg.x);
+                valuator_mask_set_double(m, 4, msg.y);
+                xf86PostMotionEventM(pInfo->dev, Absolute, m);
+                break;
+            case 6:
+                xf86IDrvMsg(pInfo, X_INFO, "button down\n");
+                xf86PostButtonEvent(pInfo->dev, Relative, msg.button, 1, 0, 0);
+                break;
+            case 7:
+                xf86IDrvMsg(pInfo, X_INFO, "button up\n");
+                xf86PostButtonEvent(pInfo->dev, Relative, msg.button, 0, 0, 0);
+                break;
+            case 8:
+                xf86IDrvMsg(pInfo, X_INFO, "scroll motion\n");
+                valuator_mask_set_double(m, 5, msg.x);
+                valuator_mask_set_double(m, 6, msg.y);
+                xf86PostMotionEventM(pInfo->dev, Relative, m);
+                break;
+            default:
+                xf86IDrvMsg(pInfo, X_ERROR, "unknown message type %d\n", msg.type);
+                break;
             }
-
-            // TODO: extend to other types, such as keyboard and mouse
-            xf86PostTouchEvent(pInfo->dev, msg.touchId, msg.type, 0, m);
         }
 
         /* Close socket. */
