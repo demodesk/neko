@@ -56,7 +56,8 @@
 #include <xserver-properties.h>
 #include <pthread.h>
 
-#define MAX_USED_VALUATORS 3 /* x, y, pressure */
+#define TOUCHPAD_NUM_AXES 7 /* mt_x, mt_y, mt_pressure, abs_x, abs_y, rel_hscroll, rel-vscroll */
+#define TABLET_NUM_BUTTONS 11 /* we need scroll buttons */
 #define TOUCH_MAX_SLOTS 10 /* max number of simultaneous touches */
 
 struct neko_message
@@ -175,21 +176,18 @@ PointerCtrl(__attribute__ ((unused)) DeviceIntPtr device,
 }
 
 static int
-InitTouch(InputInfoPtr pInfo)
+InitDevice(InputInfoPtr pInfo)
 {
     // custom private data
     struct neko_priv *priv = pInfo->private;
 
-	const int nbtns = 11;
-	const int naxes = 3;
-
-    unsigned char map[nbtns + 1];
-    Atom btn_labels[nbtns];
-    Atom axis_labels[naxes];
+    unsigned char map[TABLET_NUM_BUTTONS + 1];
+    Atom btn_labels[TABLET_NUM_BUTTONS];
+    Atom axis_labels[TOUCHPAD_NUM_AXES];
 
     // init button map
     memset(map, 0, sizeof(map));
-    for (int i = 0; i < nbtns; i++)
+    for (int i = 0; i < TABLET_NUM_BUTTONS; i++)
     {
         map[i + 1] = i + 1;
     }
@@ -210,17 +208,25 @@ InitTouch(InputInfoPtr pInfo)
 
     // init axis labels
     memset(axis_labels, 0, ARRAY_SIZE(axis_labels) * sizeof(Atom));
+    // multitouch axes
     axis_labels[0] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_X);
     axis_labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_Y);
     axis_labels[2] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_PRESSURE);
+    // absolute pointer axes
+	axis_labels[3] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_X);
+	axis_labels[4] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_Y);
+    // relative scroll axes
+	axis_labels[5] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_HSCROLL);
+	axis_labels[6] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_VSCROLL);
+
 
     /* initialize mouse emulation valuators */
     if (InitPointerDeviceStruct((DevicePtr)pInfo->dev,
             map,
-            nbtns, btn_labels,
+            TABLET_NUM_BUTTONS, btn_labels,
             PointerCtrl,
             GetMotionHistorySize(),
-            naxes, axis_labels) == FALSE)
+            TOUCHPAD_NUM_AXES, axis_labels) == FALSE)
     {
         xf86IDrvMsg(pInfo, X_ERROR,
             "unable to allocate PointerDeviceStruct\n");
@@ -274,6 +280,27 @@ InitTouch(InputInfoPtr pInfo)
         priv->pmax + 1,   /* max_res */
         Absolute);
 
+    xf86InitValuatorAxisStruct(pInfo->dev, 3,
+        XIGetKnownProperty(AXIS_LABEL_PROP_ABS_X),
+        0,                /* min val */
+        priv->width - 1,  /* max val */
+        priv->width,      /* resolution */
+        0,                /* min_res */
+        priv->width,      /* max_res */
+        Absolute);
+
+    xf86InitValuatorAxisStruct(pInfo->dev, 4,
+        XIGetKnownProperty(AXIS_LABEL_PROP_ABS_Y),
+        0,                /* min val */
+        priv->height - 1, /* max val */
+        priv->height,     /* resolution */
+        0,                /* min_res */
+        priv->height,     /* max_res */
+        Absolute);
+
+	SetScrollValuator(pInfo->dev, 5, SCROLL_TYPE_HORIZONTAL, 1.0, SCROLL_FLAG_PREFERRED);
+	SetScrollValuator(pInfo->dev, 6, SCROLL_TYPE_VERTICAL, 1.0, SCROLL_FLAG_NONE);
+
     /*
         The mode field is either XIDirectTouch for direct−input touch devices
         such as touchscreens or XIDependentTouch for indirect input devices such
@@ -289,7 +316,7 @@ InitTouch(InputInfoPtr pInfo)
     if (InitTouchClassDeviceStruct(pInfo->dev,
             priv->slots,
             XIDirectTouch,
-            naxes) == FALSE)
+            TOUCHPAD_NUM_AXES) == FALSE)
     {
         xf86IDrvMsg(pInfo, X_ERROR,
             "unable to allocate TouchClassDeviceStruct\n");
@@ -309,11 +336,12 @@ DeviceControl(DeviceIntPtr device, int what)
 
     switch (what) {
     case DEVICE_INIT:
+        xf86IDrvMsg(pInfo, X_INFO, "DEVICE INIT\n");
         device->public.on = FALSE;
 
-        if (InitTouch(pInfo) != Success)
+        if (InitDevice(pInfo) != Success)
         {
-            xf86IDrvMsg(pInfo, X_ERROR, "unable to init touch\n");
+            xf86IDrvMsg(pInfo, X_ERROR, "unable to init device\n");
             return !Success;
         }
         break;
@@ -418,7 +446,7 @@ PreInit(__attribute__ ((unused)) InputDriverPtr drv,
     xf86ProcessCommonOptions(pInfo, pInfo->options);
 
     /* create valuators */
-    priv->valuators = valuator_mask_new(MAX_USED_VALUATORS);
+    priv->valuators = valuator_mask_new(TOUCHPAD_NUM_AXES);
     if (!priv->valuators)
     {
         xf86IDrvMsg(pInfo, X_ERROR, "%s: out of memory\n", __FUNCTION__);
