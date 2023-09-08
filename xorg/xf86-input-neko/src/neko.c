@@ -86,6 +86,8 @@ struct neko_priv
     int height;
     int width;
     int pmax;
+    int hscroll_dist;
+    int vscroll_dist;
     ValuatorMask *valuators;
     uint16_t slots;
     /* socket */
@@ -265,12 +267,11 @@ InitDevice(InputInfoPtr pInfo)
     axis_labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_Y);
     axis_labels[2] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_PRESSURE);
     // absolute pointer axes
-	axis_labels[3] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_X);
-	axis_labels[4] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_Y);
+    axis_labels[3] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_X);
+    axis_labels[4] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_Y);
     // relative scroll axes
-	axis_labels[5] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_HSCROLL);
-	axis_labels[6] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_VSCROLL);
-
+    axis_labels[5] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_HSCROLL);
+    axis_labels[6] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_VSCROLL);
 
     /* initialize mouse emulation valuators */
     if (InitPointerDeviceStruct((DevicePtr)pInfo->dev,
@@ -350,8 +351,8 @@ InitDevice(InputInfoPtr pInfo)
         priv->height,     /* max_res */
         Absolute);
 
-	SetScrollValuator(pInfo->dev, 5, SCROLL_TYPE_HORIZONTAL, 1.0, SCROLL_FLAG_PREFERRED);
-	SetScrollValuator(pInfo->dev, 6, SCROLL_TYPE_VERTICAL, 1.0, SCROLL_FLAG_NONE);
+    SetScrollValuator(pInfo->dev, 5, SCROLL_TYPE_HORIZONTAL, priv->hscroll_dist, SCROLL_FLAG_PREFERRED);
+    SetScrollValuator(pInfo->dev, 6, SCROLL_TYPE_VERTICAL, priv->vscroll_dist, SCROLL_FLAG_NONE);
 
     /*
         The mode field is either XIDirectTouch for direct−input touch devices
@@ -506,9 +507,21 @@ PreInit(__attribute__ ((unused)) InputDriverPtr drv,
     }
 
     priv->slots = TOUCH_MAX_SLOTS;
+    /* neko does not provide axis information for absolute devices, instead
+     * it scales into the screen dimensions provided. So we set up the axes with
+     * a fixed range, let neko scale into that range and then the server
+     * do the scaling it usually does.
+     */
     priv->width = 0xffff;
     priv->height = 0xffff;
     priv->pmax = 255;
+    /* Scroll dist value matters for source finger/continuous. For those
+     * devices neko provides pixel-like data, changing this will
+     * affect touchpad scroll speed. For wheels it doesn't matter as
+     * we're using the discrete value only.
+     */
+    priv->hscroll_dist = 120;
+    priv->vscroll_dist = 120;
     priv->thread = 0;
 
     /* Return the configured device */
@@ -553,7 +566,7 @@ _X_EXPORT InputDriverRec NEKO =
 {
     .driverVersion = 1,
     .driverName    = "neko",
-	.Identify      = NULL,
+    .Identify      = NULL,
     .PreInit       = PreInit,
     .UnInit        = UnInit,
     .module        = NULL
@@ -576,17 +589,17 @@ Unplug(__attribute__ ((unused)) pointer module)
 
 static XF86ModuleVersionInfo versionRec =
 {
-	.modname      = "neko",
-	.vendor       = MODULEVENDORSTRING,
-	._modinfo1_   = MODINFOSTRING1,
-	._modinfo2_   = MODINFOSTRING2,
-	.xf86version  = XORG_VERSION_CURRENT,
-	.majorversion = PACKAGE_VERSION_MAJOR,
-	.minorversion = PACKAGE_VERSION_MINOR,
-	.patchlevel   = PACKAGE_VERSION_PATCHLEVEL,
-	.abiclass     = ABI_CLASS_XINPUT,
-	.abiversion   = ABI_XINPUT_VERSION,
-	.moduleclass  = MOD_CLASS_XINPUT,
+    .modname      = "neko",
+    .vendor       = MODULEVENDORSTRING,
+    ._modinfo1_   = MODINFOSTRING1,
+    ._modinfo2_   = MODINFOSTRING2,
+    .xf86version  = XORG_VERSION_CURRENT,
+    .majorversion = PACKAGE_VERSION_MAJOR,
+    .minorversion = PACKAGE_VERSION_MINOR,
+    .patchlevel   = PACKAGE_VERSION_PATCHLEVEL,
+    .abiclass     = ABI_CLASS_XINPUT,
+    .abiversion   = ABI_XINPUT_VERSION,
+    .moduleclass  = MOD_CLASS_XINPUT,
     .checksum     = {0, 0, 0, 0} /* signature, to be patched into the file by a tool */
 };
 
