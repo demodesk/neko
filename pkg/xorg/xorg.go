@@ -23,8 +23,14 @@ import (
 type KbdMod uint8
 
 const (
-	KbdModCapsLock KbdMod = 2
-	KbdModNumLock  KbdMod = 16
+	KbdModShift    KbdMod = C.ShiftMask
+	KbdModCapsLock KbdMod = C.LockMask
+	KbdModControl  KbdMod = C.ControlMask
+	KbdModAlt      KbdMod = C.Mod1Mask
+	KbdModNumLock  KbdMod = C.Mod2Mask
+	KbdModMeta     KbdMod = C.Mod3Mask
+	KbdModSuper    KbdMod = C.Mod4Mask
+	KbdModAltGr    KbdMod = C.Mod5Mask
 )
 
 type ScreenConfiguration struct {
@@ -248,7 +254,7 @@ func SetKeyboardModifier(mod KbdMod, active bool) {
 		num = C.int(1)
 	}
 
-	C.XSetKeyboardModifier(C.int(mod), num)
+	C.XSetKeyboardModifier(C.uchar(mod), num)
 }
 
 func GetKeyboardModifiers() KbdMod {

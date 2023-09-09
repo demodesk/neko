@@ -368,17 +368,19 @@ XRRModeInfo XCreateScreenModeInfo(int hdisplay, int vdisplay, short vrefresh) {
   return modeinfo;
 }
 
-void XSetKeyboardModifier(int mod, int on) {
+void XSetKeyboardModifier(unsigned char mod, int on) {
   Display *display = getXDisplay();
   XkbLockModifiers(display, XkbUseCoreKbd, mod, on ? mod : 0);
   XFlush(display);
 }
 
-char XGetKeyboardModifiers() {
+unsigned char XGetKeyboardModifiers() {
   XkbStateRec xkbState;
   Display *display = getXDisplay();
   XkbGetState(display, XkbUseCoreKbd, &xkbState);
-  return xkbState.locked_mods;
+  // XkbStateFieldFromRec() doesn't work properly because
+  // state.lookup_mods isn't properly updated, so we do this manually
+  return XkbBuildCoreState(XkbStateMods(&xkbState), xkbState.group);
 }
 
 XFixesCursorImage *XGetCursorImage(void) {
