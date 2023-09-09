@@ -88,11 +88,16 @@ func GetCursorPosition() (int, int) {
 	return int(x), int(y)
 }
 
-func Scroll(x, y int) {
+func Scroll(deltaX, deltaY int, controlKey bool) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	C.XScroll(C.int(x), C.int(y))
+	if controlKey {
+		C.XSetKeyboardModifier(C.uchar(C.ControlMask), 1)
+		defer C.XSetKeyboardModifier(C.uchar(C.ControlMask), 0)
+	}
+
+	C.XScroll(C.int(deltaX), C.int(deltaY))
 }
 
 func ButtonDown(code uint32) error {

@@ -18,8 +18,8 @@ func (manager *DesktopManagerCtx) GetCursorPosition() (int, int) {
 	return xorg.GetCursorPosition()
 }
 
-func (manager *DesktopManagerCtx) Scroll(x, y int) {
-	xorg.Scroll(x, y)
+func (manager *DesktopManagerCtx) Scroll(deltaX, deltaY int, controlKey bool) {
+	xorg.Scroll(deltaX, deltaY, controlKey)
 }
 
 func (manager *DesktopManagerCtx) ButtonDown(code uint32) error {
