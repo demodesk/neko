@@ -159,13 +159,11 @@ type ClipboardData struct {
 /////////////////////////////
 
 type KeyboardMap struct {
-	Layout  string `json:"layout"`
-	Variant string `json:"variant"`
+	types.KeyboardMap
 }
 
 type KeyboardModifiers struct {
-	CapsLock *bool `json:"capslock"`
-	NumLock  *bool `json:"numlock"`
+	types.KeyboardModifiers
 }
 
 /////////////////////////////
