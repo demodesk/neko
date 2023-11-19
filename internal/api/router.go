@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 
 	"github.com/demodesk/neko/internal/api/members"
 	"github.com/demodesk/neko/internal/api/room"
@@ -57,6 +59,14 @@ func (api *ApiManagerCtx) Route(r types.Router) {
 		for path, router := range api.routers {
 			r.Route(path, router)
 		}
+	})
+
+	r.Get("/novnc/*", func(w http.ResponseWriter, r *http.Request) error {
+		http.StripPrefix("/api/novnc/", httputil.NewSingleHostReverseProxy(&url.URL{
+			Scheme: "http",
+			Host:   "localhost:6080",
+		})).ServeHTTP(w, r)
+		return nil
 	})
 }
 

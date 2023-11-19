@@ -131,6 +131,17 @@ COPY --from=xorg-deps /usr/local/lib/xorg/modules/drivers/dummy_drv.so /usr/lib/
 COPY --from=xorg-deps /usr/local/lib/xorg/modules/input/neko_drv.so /usr/lib/xorg/modules/input/neko_drv.so
 
 #
+# install novnc
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        novnc tigervnc-scraping-server python3-websockify; \
+    #
+    # clean up
+    apt-get clean -y; \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/*
+
+#
 # copy runtime configs
 COPY --chown=neko:neko runtime/.Xresources /home/$USERNAME/.Xresources
 COPY runtime/default.pa /etc/pulse/default.pa
