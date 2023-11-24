@@ -16,6 +16,10 @@ import (
 const maxUploadSize = 32 << 20
 
 func (h *RoomHandler) uploadDrop(w http.ResponseWriter, r *http.Request) error {
+	if !h.desktop.IsUploadDropEnabled() {
+		return utils.HttpBadRequest("upload drop is disabled")
+	}
+
 	err := r.ParseMultipartForm(maxUploadSize)
 	if err != nil {
 		return utils.HttpBadRequest("failed to parse multipart form").WithInternalErr(err)
@@ -87,6 +91,10 @@ func (h *RoomHandler) uploadDrop(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (h *RoomHandler) uploadDialogPost(w http.ResponseWriter, r *http.Request) error {
+	if !h.desktop.IsFileChooserDialogEnabled() {
+		return utils.HttpBadRequest("file chooser dialog is disabled")
+	}
+
 	err := r.ParseMultipartForm(maxUploadSize)
 	if err != nil {
 		return utils.HttpBadRequest("failed to parse multipart form").WithInternalErr(err)
@@ -150,6 +158,10 @@ func (h *RoomHandler) uploadDialogPost(w http.ResponseWriter, r *http.Request) e
 }
 
 func (h *RoomHandler) uploadDialogClose(w http.ResponseWriter, r *http.Request) error {
+	if !h.desktop.IsFileChooserDialogEnabled() {
+		return utils.HttpBadRequest("file chooser dialog is disabled")
+	}
+
 	if !h.desktop.IsFileChooserDialogOpened() {
 		return utils.HttpUnprocessableEntity("file chooser dialog is not open")
 	}
