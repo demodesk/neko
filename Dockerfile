@@ -18,12 +18,10 @@ WORKDIR /xorg
 
 COPY xorg/ /xorg/
 
-# build xserver-xorg-video-dummy 0.3.8-2 with RandR support.
+# build xf86-video-dummy v0.3.8 with RandR support
 RUN set -eux; \
-    cd xf86-video-dummy; \
-    git clone --depth 1 --branch xserver-xorg-video-dummy-1_0.3.8-2 https://salsa.debian.org/xorg-team/driver/xserver-xorg-video-dummy; \
-    cd xserver-xorg-video-dummy; \
-    patch -p1 < ../xdummy-randr.patch; \
+    cd xf86-video-dummy/v0.3.8; \
+    patch -p1 < ../01_v0.3.8_xdummy-randr.patch; \
     ./autogen.sh; \
     make -j$(nproc); \
     make install;
