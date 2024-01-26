@@ -22,7 +22,8 @@ COPY xorg/ /xorg/
 RUN set -eux; \
     cd xf86-video-dummy/v0.3.8; \
     patch -p1 < ../01_v0.3.8_xdummy-randr.patch; \
-    ./autogen.sh; \
+    autoreconf -v --install; \
+    ./configure; \
     make -j$(nproc); \
     make install;
 
