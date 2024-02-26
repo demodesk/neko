@@ -48,10 +48,8 @@ func (d *driver) Debounce(duration time.Duration) {
 		}
 
 		msg := Message{
-			_type:   XI_TouchEnd,
+			_type:   msgTouchEndWithoutPayload,
 			touchId: touchId,
-			x:       -1,
-			y:       -1,
 		}
 		_, _ = d.conn.Write(msg.Pack())
 		delete(d.debounceTouchIds, touchId)
@@ -69,7 +67,7 @@ func (d *driver) TouchBegin(touchId uint32, x, y int, pressure uint8) error {
 	d.debounceTouchIds[touchId] = time.Now()
 
 	msg := Message{
-		_type:    XI_TouchBegin,
+		_type:    msgTouchBegin,
 		touchId:  touchId,
 		x:        int32(x),
 		y:        int32(y),
@@ -90,7 +88,7 @@ func (d *driver) TouchUpdate(touchId uint32, x, y int, pressure uint8) error {
 	d.debounceTouchIds[touchId] = time.Now()
 
 	msg := Message{
-		_type:    XI_TouchUpdate,
+		_type:    msgTouchUpdate,
 		touchId:  touchId,
 		x:        int32(x),
 		y:        int32(y),
@@ -111,11 +109,49 @@ func (d *driver) TouchEnd(touchId uint32, x, y int, pressure uint8) error {
 	delete(d.debounceTouchIds, touchId)
 
 	msg := Message{
-		_type:    XI_TouchEnd,
+		_type:    msgTouchEndWithPayload,
 		touchId:  touchId,
 		x:        int32(x),
 		y:        int32(y),
 		pressure: pressure,
+	}
+	_, err := d.conn.Write(msg.Pack())
+	return err
+}
+
+func (d *driver) Move(x, y int) error {
+	msg := Message{
+		_type: msgPointerMotion,
+		x:     int32(x),
+		y:     int32(y),
+	}
+	_, err := d.conn.Write(msg.Pack())
+	return err
+}
+
+func (d *driver) ButtonDown(button uint32) error {
+	msg := Message{
+		_type:  msgButtonDown,
+		button: button,
+	}
+	_, err := d.conn.Write(msg.Pack())
+	return err
+}
+
+func (d *driver) ButtonUp(button uint32) error {
+	msg := Message{
+		_type:  msgButtonUp,
+		button: button,
+	}
+	_, err := d.conn.Write(msg.Pack())
+	return err
+}
+
+func (d *driver) Scroll(x, y int) error {
+	msg := Message{
+		_type: msgScrollMotion,
+		x:     int32(x),
+		y:     int32(y),
 	}
 	_, err := d.conn.Write(msg.Pack())
 	return err

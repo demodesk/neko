@@ -37,7 +37,7 @@
 #endif
 
 #define DEF_SOCKET_NAME "/tmp/xf86-input-neko.sock"
-#define BUFFER_SIZE 12
+#define BUFFER_SIZE 16
 
 #include <stdio.h>
 #include <stdio.h>
@@ -56,16 +56,27 @@
 #include <xserver-properties.h>
 #include <pthread.h>
 
-#define MAX_USED_VALUATORS 3 /* x, y, pressure */
+#define TOUCHPAD_NUM_AXES 7 /* mt_x, mt_y, mt_pressure, abs_x, abs_y, rel_hscroll, rel-vscroll */
+#define TABLET_NUM_BUTTONS 11 /* we need scroll buttons */
 #define TOUCH_MAX_SLOTS 10 /* max number of simultaneous touches */
+
 
 struct neko_message
 {
+    // type 1 - touch begin
+    // type 2 - touch update
+    // type 3 - touch end (with payload)
+    // type 4 - touch end (without payload)
+    // type 5 - pointer motion
+    // type 6 - button down
+    // type 7 - button up
+    // type 8 - scroll motion
     uint16_t type;
     uint32_t touchId;
-    int32_t x;
-    int32_t y;
+    int32_t x; // mt_x, abs_y, rel_hscroll
+    int32_t y; // mt_y, abs_y, rel_vscroll
     uint8_t pressure;
+    uint32_t button;
 };
 
 struct neko_priv
@@ -75,6 +86,8 @@ struct neko_priv
     int height;
     int width;
     int pmax;
+    int hscroll_dist;
+    int vscroll_dist;
     ValuatorMask *valuators;
     uint16_t slots;
     /* socket */
@@ -92,6 +105,7 @@ UnpackNekoMessage(struct neko_message *msg, unsigned char *buffer)
     msg->x = buffer[3] | (buffer[4] << 8) | (buffer[5] << 16) | (buffer[6] << 24);
     msg->y = buffer[7] | (buffer[8] << 8) | (buffer[9] << 16) | (buffer[10] << 24);
     msg->pressure = buffer[11];
+    msg->button = buffer[12] | (buffer[13] << 8) | (buffer[14] << 16) | (buffer[15] << 24);
 }
 
 static void
@@ -149,16 +163,57 @@ ReadInput(InputInfoPtr pInfo)
             ValuatorMask *m = priv->valuators;
             valuator_mask_zero(m);
 
-            // do not send valuators if x and y are -1
-            if (msg.x != -1 && msg.y != -1)
+            switch(msg.type)
             {
+            case 1:
+                xf86IDrvMsg(pInfo, X_INFO, "touch begin\n");
                 valuator_mask_set_double(m, 0, msg.x);
                 valuator_mask_set_double(m, 1, msg.y);
                 valuator_mask_set_double(m, 2, msg.pressure);
+                xf86PostTouchEvent(pInfo->dev, msg.touchId, XI_TouchBegin, 0, m);
+                break;
+            case 2:
+                xf86IDrvMsg(pInfo, X_INFO, "touch update\n");
+                valuator_mask_set_double(m, 0, msg.x);
+                valuator_mask_set_double(m, 1, msg.y);
+                valuator_mask_set_double(m, 2, msg.pressure);
+                xf86PostTouchEvent(pInfo->dev, msg.touchId, XI_TouchUpdate, 0, m);
+                break;
+            case 3:
+                xf86IDrvMsg(pInfo, X_INFO, "touch end with payload\n");
+                valuator_mask_set_double(m, 0, msg.x);
+                valuator_mask_set_double(m, 1, msg.y);
+                valuator_mask_set_double(m, 2, msg.pressure);
+                xf86PostTouchEvent(pInfo->dev, msg.touchId, XI_TouchEnd, 0, m);
+                break;
+            case 4:
+                xf86IDrvMsg(pInfo, X_INFO, "touch end without payload\n");
+                xf86PostTouchEvent(pInfo->dev, msg.touchId, XI_TouchEnd, 0, m);
+                break;
+            case 5:
+                xf86IDrvMsg(pInfo, X_INFO, "pointer motion\n");
+                valuator_mask_set_double(m, 3, msg.x);
+                valuator_mask_set_double(m, 4, msg.y);
+                xf86PostMotionEventM(pInfo->dev, Absolute, m);
+                break;
+            case 6:
+                xf86IDrvMsg(pInfo, X_INFO, "button down\n");
+                xf86PostButtonEvent(pInfo->dev, Relative, msg.button, 1, 0, 0);
+                break;
+            case 7:
+                xf86IDrvMsg(pInfo, X_INFO, "button up\n");
+                xf86PostButtonEvent(pInfo->dev, Relative, msg.button, 0, 0, 0);
+                break;
+            case 8:
+                xf86IDrvMsg(pInfo, X_INFO, "scroll motion\n");
+                valuator_mask_set_double(m, 5, msg.x);
+                valuator_mask_set_double(m, 6, msg.y);
+                xf86PostMotionEventM(pInfo->dev, Relative, m);
+                break;
+            default:
+                xf86IDrvMsg(pInfo, X_ERROR, "unknown message type %d\n", msg.type);
+                break;
             }
-
-            // TODO: extend to other types, such as keyboard and mouse
-            xf86PostTouchEvent(pInfo->dev, msg.touchId, msg.type, 0, m);
         }
 
         /* Close socket. */
@@ -175,21 +230,18 @@ PointerCtrl(__attribute__ ((unused)) DeviceIntPtr device,
 }
 
 static int
-InitTouch(InputInfoPtr pInfo)
+InitDevice(InputInfoPtr pInfo)
 {
     // custom private data
     struct neko_priv *priv = pInfo->private;
 
-	const int nbtns = 11;
-	const int naxes = 3;
-
-    unsigned char map[nbtns + 1];
-    Atom btn_labels[nbtns];
-    Atom axis_labels[naxes];
+    unsigned char map[TABLET_NUM_BUTTONS + 1];
+    Atom btn_labels[TABLET_NUM_BUTTONS];
+    Atom axis_labels[TOUCHPAD_NUM_AXES];
 
     // init button map
     memset(map, 0, sizeof(map));
-    for (int i = 0; i < nbtns; i++)
+    for (int i = 0; i < TABLET_NUM_BUTTONS; i++)
     {
         map[i + 1] = i + 1;
     }
@@ -210,17 +262,24 @@ InitTouch(InputInfoPtr pInfo)
 
     // init axis labels
     memset(axis_labels, 0, ARRAY_SIZE(axis_labels) * sizeof(Atom));
+    // multitouch axes
     axis_labels[0] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_X);
     axis_labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_POSITION_Y);
     axis_labels[2] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_MT_PRESSURE);
+    // absolute pointer axes
+    axis_labels[3] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_X);
+    axis_labels[4] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_Y);
+    // relative scroll axes
+    axis_labels[5] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_HSCROLL);
+    axis_labels[6] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_VSCROLL);
 
     /* initialize mouse emulation valuators */
     if (InitPointerDeviceStruct((DevicePtr)pInfo->dev,
             map,
-            nbtns, btn_labels,
+            TABLET_NUM_BUTTONS, btn_labels,
             PointerCtrl,
             GetMotionHistorySize(),
-            naxes, axis_labels) == FALSE)
+            TOUCHPAD_NUM_AXES, axis_labels) == FALSE)
     {
         xf86IDrvMsg(pInfo, X_ERROR,
             "unable to allocate PointerDeviceStruct\n");
@@ -274,6 +333,27 @@ InitTouch(InputInfoPtr pInfo)
         priv->pmax + 1,   /* max_res */
         Absolute);
 
+    xf86InitValuatorAxisStruct(pInfo->dev, 3,
+        XIGetKnownProperty(AXIS_LABEL_PROP_ABS_X),
+        0,                /* min val */
+        priv->width - 1,  /* max val */
+        priv->width,      /* resolution */
+        0,                /* min_res */
+        priv->width,      /* max_res */
+        Absolute);
+
+    xf86InitValuatorAxisStruct(pInfo->dev, 4,
+        XIGetKnownProperty(AXIS_LABEL_PROP_ABS_Y),
+        0,                /* min val */
+        priv->height - 1, /* max val */
+        priv->height,     /* resolution */
+        0,                /* min_res */
+        priv->height,     /* max_res */
+        Absolute);
+
+    SetScrollValuator(pInfo->dev, 5, SCROLL_TYPE_HORIZONTAL, priv->hscroll_dist, SCROLL_FLAG_PREFERRED);
+    SetScrollValuator(pInfo->dev, 6, SCROLL_TYPE_VERTICAL, priv->vscroll_dist, SCROLL_FLAG_NONE);
+
     /*
         The mode field is either XIDirectTouch for direct−input touch devices
         such as touchscreens or XIDependentTouch for indirect input devices such
@@ -289,7 +369,7 @@ InitTouch(InputInfoPtr pInfo)
     if (InitTouchClassDeviceStruct(pInfo->dev,
             priv->slots,
             XIDirectTouch,
-            naxes) == FALSE)
+            TOUCHPAD_NUM_AXES) == FALSE)
     {
         xf86IDrvMsg(pInfo, X_ERROR,
             "unable to allocate TouchClassDeviceStruct\n");
@@ -309,11 +389,12 @@ DeviceControl(DeviceIntPtr device, int what)
 
     switch (what) {
     case DEVICE_INIT:
+        xf86IDrvMsg(pInfo, X_INFO, "DEVICE INIT\n");
         device->public.on = FALSE;
 
-        if (InitTouch(pInfo) != Success)
+        if (InitDevice(pInfo) != Success)
         {
-            xf86IDrvMsg(pInfo, X_ERROR, "unable to init touch\n");
+            xf86IDrvMsg(pInfo, X_ERROR, "unable to init device\n");
             return !Success;
         }
         break;
@@ -418,7 +499,7 @@ PreInit(__attribute__ ((unused)) InputDriverPtr drv,
     xf86ProcessCommonOptions(pInfo, pInfo->options);
 
     /* create valuators */
-    priv->valuators = valuator_mask_new(MAX_USED_VALUATORS);
+    priv->valuators = valuator_mask_new(TOUCHPAD_NUM_AXES);
     if (!priv->valuators)
     {
         xf86IDrvMsg(pInfo, X_ERROR, "%s: out of memory\n", __FUNCTION__);
@@ -426,9 +507,21 @@ PreInit(__attribute__ ((unused)) InputDriverPtr drv,
     }
 
     priv->slots = TOUCH_MAX_SLOTS;
+    /* neko does not provide axis information for absolute devices, instead
+     * it scales into the screen dimensions provided. So we set up the axes with
+     * a fixed range, let neko scale into that range and then the server
+     * do the scaling it usually does.
+     */
     priv->width = 0xffff;
     priv->height = 0xffff;
     priv->pmax = 255;
+    /* Scroll dist value matters for source finger/continuous. For those
+     * devices neko provides pixel-like data, changing this will
+     * affect touchpad scroll speed. For wheels it doesn't matter as
+     * we're using the discrete value only.
+     */
+    priv->hscroll_dist = 120;
+    priv->vscroll_dist = 120;
     priv->thread = 0;
 
     /* Return the configured device */
@@ -473,7 +566,7 @@ _X_EXPORT InputDriverRec NEKO =
 {
     .driverVersion = 1,
     .driverName    = "neko",
-	.Identify      = NULL,
+    .Identify      = NULL,
     .PreInit       = PreInit,
     .UnInit        = UnInit,
     .module        = NULL
@@ -496,17 +589,17 @@ Unplug(__attribute__ ((unused)) pointer module)
 
 static XF86ModuleVersionInfo versionRec =
 {
-	.modname      = "neko",
-	.vendor       = MODULEVENDORSTRING,
-	._modinfo1_   = MODINFOSTRING1,
-	._modinfo2_   = MODINFOSTRING2,
-	.xf86version  = XORG_VERSION_CURRENT,
-	.majorversion = PACKAGE_VERSION_MAJOR,
-	.minorversion = PACKAGE_VERSION_MINOR,
-	.patchlevel   = PACKAGE_VERSION_PATCHLEVEL,
-	.abiclass     = ABI_CLASS_XINPUT,
-	.abiversion   = ABI_XINPUT_VERSION,
-	.moduleclass  = MOD_CLASS_XINPUT,
+    .modname      = "neko",
+    .vendor       = MODULEVENDORSTRING,
+    ._modinfo1_   = MODINFOSTRING1,
+    ._modinfo2_   = MODINFOSTRING2,
+    .xf86version  = XORG_VERSION_CURRENT,
+    .majorversion = PACKAGE_VERSION_MAJOR,
+    .minorversion = PACKAGE_VERSION_MINOR,
+    .patchlevel   = PACKAGE_VERSION_PATCHLEVEL,
+    .abiclass     = ABI_CLASS_XINPUT,
+    .abiversion   = ABI_XINPUT_VERSION,
+    .moduleclass  = MOD_CLASS_XINPUT,
     .checksum     = {0, 0, 0, 0} /* signature, to be patched into the file by a tool */
 };
 

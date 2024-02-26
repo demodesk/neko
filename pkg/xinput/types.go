@@ -9,17 +9,23 @@ const (
 )
 
 const (
-	XI_TouchBegin  = 18
-	XI_TouchUpdate = 19
-	XI_TouchEnd    = 20
+	msgTouchBegin             = 1
+	msgTouchUpdate            = 2
+	msgTouchEndWithPayload    = 3
+	msgTouchEndWithoutPayload = 4
+	msgPointerMotion          = 5
+	msgButtonDown             = 6
+	msgButtonUp               = 7
+	msgScrollMotion           = 8
 )
 
 type Message struct {
 	_type    uint16
 	touchId  uint32
-	x        int32 // can be negative?
-	y        int32 // can be negative?
+	x        int32
+	y        int32
 	pressure uint8
+	button   uint32
 }
 
 func (msg *Message) Unpack(buffer []byte) {
@@ -28,10 +34,11 @@ func (msg *Message) Unpack(buffer []byte) {
 	msg.x = int32(buffer[3]) | (int32(buffer[4]) << 8) | (int32(buffer[5]) << 16) | (int32(buffer[6]) << 24)
 	msg.y = int32(buffer[7]) | (int32(buffer[8]) << 8) | (int32(buffer[9]) << 16) | (int32(buffer[10]) << 24)
 	msg.pressure = uint8(buffer[11])
+	msg.button = uint32(buffer[12]) | (uint32(buffer[13]) << 8) | (uint32(buffer[14]) << 16) | (uint32(buffer[15]) << 24)
 }
 
 func (msg *Message) Pack() []byte {
-	var buffer [12]byte
+	var buffer [16]byte
 
 	buffer[0] = byte(msg._type)
 	buffer[1] = byte(msg.touchId)
@@ -45,6 +52,10 @@ func (msg *Message) Pack() []byte {
 	buffer[9] = byte(msg.y >> 16)
 	buffer[10] = byte(msg.y >> 24)
 	buffer[11] = byte(msg.pressure)
+	buffer[12] = byte(msg.button)
+	buffer[13] = byte(msg.button >> 8)
+	buffer[14] = byte(msg.button >> 16)
+	buffer[15] = byte(msg.button >> 24)
 
 	return buffer[:]
 }
@@ -58,4 +69,9 @@ type Driver interface {
 	TouchBegin(touchId uint32, x, y int, pressure uint8) error
 	TouchUpdate(touchId uint32, x, y int, pressure uint8) error
 	TouchEnd(touchId uint32, x, y int, pressure uint8) error
+	// mouse events
+	Move(x, y int) error
+	ButtonDown(button uint32) error
+	ButtonUp(button uint32) error
+	Scroll(x, y int) error
 }
