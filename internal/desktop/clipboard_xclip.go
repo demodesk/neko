@@ -1,3 +1,6 @@
+//go:build !libclipboard
+// +build !libclipboard
+
 package desktop
 
 import (
