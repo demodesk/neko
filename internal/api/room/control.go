@@ -6,6 +6,8 @@ import (
 	"github.com/go-chi/chi"
 
 	"github.com/demodesk/neko/pkg/auth"
+	"github.com/demodesk/neko/pkg/types/event"
+	"github.com/demodesk/neko/pkg/types/message"
 	"github.com/demodesk/neko/pkg/utils"
 )
 
@@ -33,17 +35,26 @@ func (h *RoomHandler) controlStatus(w http.ResponseWriter, r *http.Request) erro
 }
 
 func (h *RoomHandler) controlRequest(w http.ResponseWriter, r *http.Request) error {
-	_, hasHost := h.sessions.GetHost()
+	session, _ := auth.GetSession(r)
+	host, hasHost := h.sessions.GetHost()
 	if hasHost {
-		return utils.HttpUnprocessableEntity("there is already a host")
+		// TODO: Some throttling mechanism to prevent spamming.
+
+		// let host know that someone wants to take control
+		host.Send(
+			event.CONTROL_REQUEST,
+			message.SessionID{
+				ID: session.ID(),
+			})
+
+		return utils.HttpError(http.StatusAccepted, "control request sent")
 	}
 
-	session, _ := auth.GetSession(r)
 	if h.sessions.Settings().LockedControls && !session.Profile().IsAdmin {
 		return utils.HttpForbidden("controls are locked")
 	}
 
-	h.sessions.SetHost(session)
+	session.SetAsHost()
 
 	return utils.HttpSuccess(w)
 }
@@ -55,19 +66,20 @@ func (h *RoomHandler) controlRelease(w http.ResponseWriter, r *http.Request) err
 	}
 
 	h.desktop.ResetKeys()
-	h.sessions.ClearHost()
+	session.ClearHost()
 
 	return utils.HttpSuccess(w)
 }
 
 func (h *RoomHandler) controlTake(w http.ResponseWriter, r *http.Request) error {
 	session, _ := auth.GetSession(r)
-	h.sessions.SetHost(session)
+	session.SetAsHost()
 
 	return utils.HttpSuccess(w)
 }
 
 func (h *RoomHandler) controlGive(w http.ResponseWriter, r *http.Request) error {
+	session, _ := auth.GetSession(r)
 	sessionId := chi.URLParam(r, "sessionId")
 
 	target, ok := h.sessions.Get(sessionId)
@@ -79,17 +91,18 @@ func (h *RoomHandler) controlGive(w http.ResponseWriter, r *http.Request) error 
 		return utils.HttpBadRequest("target session is not allowed to host")
 	}
 
-	h.sessions.SetHost(target)
+	target.SetAsHostBy(session)
 
 	return utils.HttpSuccess(w)
 }
 
 func (h *RoomHandler) controlReset(w http.ResponseWriter, r *http.Request) error {
+	session, _ := auth.GetSession(r)
 	_, hasHost := h.sessions.GetHost()
 
 	if hasHost {
 		h.desktop.ResetKeys()
-		h.sessions.ClearHost()
+		session.ClearHost()
 	}
 
 	return utils.HttpSuccess(w)

@@ -2,8 +2,15 @@ package types
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 
+	"github.com/demodesk/neko/pkg/utils"
 	"github.com/spf13/cobra"
+)
+
+var (
+	ErrPluginSettingsNotFound = errors.New("plugin settings not found")
 )
 
 type Plugin interface {
@@ -60,4 +67,25 @@ func (p *PluginManagers) Validate() error {
 	}
 
 	return nil
+}
+
+type PluginSettings map[string]any
+
+func (p PluginSettings) Unmarshal(name string, def any) error {
+	if p == nil {
+		return fmt.Errorf("%w: %s", ErrPluginSettingsNotFound, name)
+	}
+	// loop through the plugin settings and take only the one that starts with the name
+	// because the settings are stored in a map["plugin_name.setting_name"] = value
+	newMap := make(map[string]any)
+	for k, v := range p {
+		if strings.HasPrefix(k, name+".") {
+			newMap[strings.TrimPrefix(k, name+".")] = v
+		}
+	}
+	fmt.Printf("newMap: %+v\n", newMap)
+	if len(newMap) == 0 {
+		return fmt.Errorf("%w: %s", ErrPluginSettingsNotFound, name)
+	}
+	return utils.Decode(newMap, def)
 }

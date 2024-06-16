@@ -96,10 +96,12 @@ func (manager *WebSocketManagerCtx) Start() {
 			Msg("session disconnected")
 	})
 
-	manager.sessions.OnProfileChanged(func(session types.Session) {
-		err := manager.handler.SessionProfileChanged(session)
+	manager.sessions.OnProfileChanged(func(session types.Session, new, old types.MemberProfile) {
+		err := manager.handler.SessionProfileChanged(session, new, old)
 		manager.logger.Err(err).
 			Str("session_id", session.ID()).
+			Interface("new", new).
+			Interface("old", old).
 			Msg("session profile changed")
 	})
 
@@ -110,24 +112,26 @@ func (manager *WebSocketManagerCtx) Start() {
 			Msg("session state changed")
 	})
 
-	manager.sessions.OnHostChanged(func(session types.Session) {
+	manager.sessions.OnHostChanged(func(session, host types.Session) {
 		payload := message.ControlHost{
-			HasHost: session != nil,
+			ID:      session.ID(),
+			HasHost: host != nil,
 		}
 
 		if payload.HasHost {
-			payload.HostID = session.ID()
+			payload.HostID = host.ID()
 		}
 
 		manager.sessions.Broadcast(event.CONTROL_HOST, payload)
 
 		manager.logger.Info().
+			Str("session_id", session.ID()).
 			Bool("has_host", payload.HasHost).
 			Str("host_id", payload.HostID).
 			Msg("session host changed")
 	})
 
-	manager.sessions.OnSettingsChanged(func(new types.Settings, old types.Settings) {
+	manager.sessions.OnSettingsChanged(func(session types.Session, new, old types.Settings) {
 		// start inactive cursors
 		if new.InactiveCursors && !old.InactiveCursors {
 			manager.startInactiveCursors()
@@ -138,8 +142,13 @@ func (manager *WebSocketManagerCtx) Start() {
 			manager.stopInactiveCursors()
 		}
 
-		manager.sessions.Broadcast(event.SYSTEM_SETTINGS, new)
+		manager.sessions.Broadcast(event.SYSTEM_SETTINGS, message.SystemSettingsUpdate{
+			ID:       session.ID(),
+			Settings: new,
+		})
+
 		manager.logger.Info().
+			Str("session_id", session.ID()).
 			Interface("new", new).
 			Interface("old", old).
 			Msg("settings changed")

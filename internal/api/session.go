@@ -33,6 +33,8 @@ func (api *ApiManagerCtx) Login(w http.ResponseWriter, r *http.Request) error {
 			return utils.HttpUnprocessableEntity("session already connected")
 		} else if errors.Is(err, types.ErrMemberDoesNotExist) || errors.Is(err, types.ErrMemberInvalidPassword) {
 			return utils.HttpUnauthorized().WithInternalErr(err)
+		} else if errors.Is(err, types.ErrSessionLoginsLocked) {
+			return utils.HttpForbidden("logins are locked").WithInternalErr(err)
 		} else {
 			return utils.HttpInternalServerError().WithInternalErr(err)
 		}
@@ -80,17 +82,4 @@ func (api *ApiManagerCtx) Whoami(w http.ResponseWriter, r *http.Request) error {
 		Profile: session.Profile(),
 		State:   session.State(),
 	})
-}
-
-func (api *ApiManagerCtx) Sessions(w http.ResponseWriter, r *http.Request) error {
-	sessions := []SessionDataPayload{}
-	for _, session := range api.sessions.List() {
-		sessions = append(sessions, SessionDataPayload{
-			ID:      session.ID(),
-			Profile: session.Profile(),
-			State:   session.State(),
-		})
-	}
-
-	return utils.HttpSuccess(w, sessions)
 }
